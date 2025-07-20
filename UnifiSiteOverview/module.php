@@ -143,7 +143,7 @@ declare(strict_types=1);
 			if ($this->GetStatus() != 102) {
 				return;
 			}
-			$begin = new DateTime(date("Y-m-d H:0:0",strtotime('-1 hours')), (new DateTime)->getTimezone());
+			$begin = new DateTime(date("Y-m-d H:0:0",strtotime('-4 hours')), (new DateTime)->getTimezone());
 			$end = new DateTime(date("Y-m-d H:0:0"), (new DateTime)->getTimezone());
 			$begin->setTimezone(new DateTimeZone("UTC"));
 			$end->setTimezone(new DateTimeZone("UTC"));
@@ -156,21 +156,20 @@ declare(strict_types=1);
 				])
 			];
 			$PostArray=json_encode($post,1);
-			$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);
-			#var_dump ($PostArray);
+			$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);			
 
 			$data = $this->getApiDataPost( '/isp-metrics/1h/query', $PostArray );
 			if ( is_array( $data ) && isset( $data ) ) {
 				foreach ($data['data']['metrics'] as $metrics) {
-					foreach ($metrics['periods'] as $periods) {
-						$aktDate = new DateTime($periods['metricTime'], (new DateTimeZone("UTC")));
-						$aktDate->setTimezone((new DateTime)->getTimezone());
-						$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
-						$this->SetValue('AVGms', $periods['data']['wan']['avgLatency']);
-						$this->SetValue('maxms', $periods['data']['wan']['maxLatency']);
-						$this->SetValue('PacketLoss', $periods['data']['wan']['packetLoss']);
-						$this->SetValue('Uptime', $periods['data']['wan']['uptime']);						
-					}
+					$periods = end($metrics['periods']);
+					$aktDate = new DateTime($periods['metricTime'], (new DateTimeZone("UTC")));
+					$aktDate->setTimezone((new DateTime)->getTimezone());
+					$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
+					$this->SetValue('AVGms', $periods['data']['wan']['avgLatency']);
+					$this->SetValue('maxms', $periods['data']['wan']['maxLatency']);
+					$this->SetValue('PacketLoss', $periods['data']['wan']['packetLoss']);
+					$this->SetValue('Uptime', $periods['data']['wan']['uptime']);						
+					$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($periods), 0);
 				}
 			}
 		}
