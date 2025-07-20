@@ -1,0 +1,12 @@
+{
+    "id": "{0CAE28C5-ADBD-03E2-389C-D8A4C3C7B568}",
+    "name": "UnifiSiteOverview",
+    "type": 3,
+    "vendor": "UniFi",
+    "aliases": [],
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "UISPM",
+    "url": "https://github.com/bgersmann/UnifiSiteManager"
+}

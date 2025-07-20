@@ -1,0 +1,12 @@
+{
+    "id": "{5B1F1918-C5EC-C616-C07F-6176A0CE3F41}",
+    "name": "UnifiSiteManager",
+    "author": "BGersmann",
+    "url": "https://github.com/bgersmann/UnifiSiteManager",
+    "compatibility": {
+        "version": "7.1"
+    },
+    "version": "1.0",
+    "build": 0,
+    "date": 0
+}
