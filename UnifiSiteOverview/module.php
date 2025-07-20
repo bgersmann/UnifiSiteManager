@@ -8,8 +8,8 @@ declare(strict_types=1);
 			//Never delete this line!
 			parent::Create();
 			$this->RegisterPropertyString( 'APIKey', '' );
-			$this->RegisterPropertyString( 'HostID', '' );
-			$this->RegisterPropertyString( 'SiteID', '' );
+			$this->RegisterPropertyString( 'HostID', 'default' );
+			$this->RegisterPropertyString( 'SiteID', 'default' );
 			$this->RegisterPropertyInteger('Timer', 0);
 			$this->RegisterPropertyBoolean("WAN2", 0);
 			$this->RegisterTimer('Collect Data', 0, "UISPM_timerRun(\$_IPS['TARGET']);");
@@ -156,6 +156,7 @@ declare(strict_types=1);
 				])
 			];
 			$PostArray=json_encode($post,1);
+			$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);
 			#var_dump ($PostArray);
 
 			$data = $this->getApiDataPost( '/isp-metrics/1h/query', $PostArray );
