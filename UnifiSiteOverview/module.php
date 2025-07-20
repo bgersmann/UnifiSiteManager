@@ -87,7 +87,7 @@ declare(strict_types=1);
 			curl_close( $ch );
 			if ($RawData === false) {
 				// Handle error
-				$this->SendDebug("UnifiGW", "Curl error: " . curl_error($ch), 0);
+				$this->SendDebug("UnifiSiteApi", "Curl error: " . curl_error($ch), 0);
 				$this->SetStatus( 201 ); // Set status to error
 				return [];
 			}
@@ -135,7 +135,7 @@ declare(strict_types=1);
 					return [];
 				}        
 			}
-			$this->SendDebug("UnifiGW", "Curl error: " . $RawData, 0);
+			$this->SendDebug("UnifiSiteApi", "Curl error: " . $RawData, 0);
 			return $JSONData;
     	}
 
