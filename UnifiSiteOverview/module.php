@@ -36,10 +36,10 @@ declare(strict_types=1);
 			$this->MaintainVariable( 'WAN2IP', $this->Translate( 'WAN2 IP' ), 3, '', $vpos++, $this->ReadPropertyBoolean("WAN2") );
 			$this->MaintainVariable( 'WAN2Uptime', $this->Translate( 'WAN2 Uptime' ), 2, '', $vpos++, $this->ReadPropertyBoolean("WAN2") );
 
-			$this->MaintainVariable( 'AVGms', $this->Translate( 'Average Latency 1h' ), 1, '', $vpos++, 1 );
-			$this->MaintainVariable( 'maxms', $this->Translate( 'Max Latency 1h' ), 1, '', $vpos++, 1 );
-			$this->MaintainVariable( 'PacketLoss', $this->Translate( 'Packetloss 1h' ), 2, '', $vpos++, 1 );
-			$this->MaintainVariable( 'Uptime', $this->Translate( 'Uptime 1h' ), 2, '', $vpos++, 1 );
+			$this->MaintainVariable( 'AVGms', $this->Translate( 'Average Latency 5m' ), 1, '', $vpos++, 1 );
+			$this->MaintainVariable( 'maxms', $this->Translate( 'Max Latency 5m' ), 1, '', $vpos++, 1 );
+			$this->MaintainVariable( 'PacketLoss', $this->Translate( 'Packetloss 5m' ), 2, '', $vpos++, 1 );
+			$this->MaintainVariable( 'Uptime', $this->Translate( 'Uptime 5m' ), 2, '', $vpos++, 1 );
 
 			$this->MaintainVariable( 'UnifiDevices', $this->Translate( 'Unifi Devices' ), 1, '', $vpos++, 1 );
 			$this->MaintainVariable( 'WifiClients', $this->Translate( 'Wifi Clients' ), 1, '', $vpos++, 1 );
@@ -99,7 +99,7 @@ declare(strict_types=1);
 					return [];
 				}        
 			}
-			$this->SendDebug("UnifiSiteApi", "Curl error: " . $RawData, 0);
+			$this->SendDebug("UnifiSiteApi", "GetApiData: " . $RawData, 0);
 			return $JSONData;
     	}
 
@@ -135,7 +135,7 @@ declare(strict_types=1);
 					return [];
 				}        
 			}
-			$this->SendDebug("UnifiSiteApi", "Curl error: " . $RawData, 0);
+			$this->SendDebug("UnifiSiteApi", "GetApiDataPost: " . $RawData, 0);
 			return $JSONData;
     	}
 
@@ -143,22 +143,22 @@ declare(strict_types=1);
 			if ($this->GetStatus() != 102) {
 				return;
 			}
-			$begin = new DateTime(date("Y-m-d H:0:0",strtotime('-4 hours')), (new DateTime)->getTimezone());
-			$end = new DateTime(date("Y-m-d H:0:0"), (new DateTime)->getTimezone());
+			$begin = new DateTime(date("Y-m-d H:i:0",strtotime('-1 hours')), (new DateTime)->getTimezone());
+			$end = new DateTime(date("Y-m-d H:i:0"), (new DateTime)->getTimezone());
 			$begin->setTimezone(new DateTimeZone("UTC"));
 			$end->setTimezone(new DateTimeZone("UTC"));
 			$post = [
 				'sites' => array([
 					'beginTimestamp'  => $begin->format("Y-m-d\TH:i:s\Z"),
 					'hostId' => $this->ReadPropertyString("HostID"),
-					'endTimestamp' => $end->format("Y-m-d\TH:i:s\Z"),
+					#'endTimestamp' => $end->format("Y-m-d\TH:i:s\Z"),
 					'siteId' => $this->ReadPropertyString("SiteID")
 				])
 			];
 			$PostArray=json_encode($post,1);
 			$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);			
 
-			$data = $this->getApiDataPost( '/isp-metrics/1h/query', $PostArray );
+			$data = $this->getApiDataPost( '/isp-metrics/5m/query', $PostArray );
 			if ( is_array( $data ) && isset( $data ) ) {
 				foreach ($data['data']['metrics'] as $metrics) {
 					$periods = end($metrics['periods']);
@@ -225,15 +225,15 @@ declare(strict_types=1);
 					}
 				} 
 			}
-		}
-		if (!$bGefunden) {
-			$value[] = [
-				'caption'=>'default',
-				'value'=> 'default'
-			];
-		}
-		$this->UpdateFormField("SiteID", "options", json_encode($value));
-		$this->SetBuffer( 'SiteID', json_encode($value));
+			}
+			if (!$bGefunden) {
+				$value[] = [
+					'caption'=>'default',
+					'value'=> 'default'
+				];
+			}
+			$this->UpdateFormField("SiteID", "options", json_encode($value));
+			$this->SetBuffer( 'SiteID', json_encode($value));
 		}
 
 		public function getSiteData() {
