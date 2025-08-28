@@ -139,42 +139,69 @@ declare(strict_types=1);
 			return $JSONData;
     	}
 
-		public function getMetrics() {
+		// public function getMetrics() {
+		// 	if ($this->GetStatus() != 102) {
+		// 		return;
+		// 	}
+		// 	$begin = new DateTime(date("Y-m-d H:i:0",strtotime('-1 hours')), (new DateTime)->getTimezone());
+		// 	$end = new DateTime(date("Y-m-d H:i:0"), (new DateTime)->getTimezone());
+		// 	$begin->setTimezone(new DateTimeZone("UTC"));
+		// 	$end->setTimezone(new DateTimeZone("UTC"));
+		// 	$post = [
+		// 		'sites' => array([
+		// 			'beginTimestamp'  => $begin->format("Y-m-d\TH:i:s\Z"),
+		// 			'hostId' => $this->ReadPropertyString("HostID"),
+		// 			#'endTimestamp' => $end->format("Y-m-d\TH:i:s\Z"),
+		// 			'siteId' => $this->ReadPropertyString("SiteID")
+		// 		])
+		// 	];
+		// 	$PostArray=json_encode($post,1);
+		// 	$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);			
+
+		// 	$data = $this->getApiDataPost( '/isp-metrics/5m/query', $PostArray );
+		// 	if ( is_array( $data ) && isset( $data ) ) {
+		// 		foreach ($data['data']['metrics'] as $metrics) {
+		// 			$periods = end($metrics['periods']);
+		// 			$aktDate = new DateTime($periods['metricTime'], (new DateTimeZone("UTC")));
+		// 			$aktDate->setTimezone((new DateTime)->getTimezone());
+		// 			$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
+		// 			$this->SetValue('AVGms', $periods['data']['wan']['avgLatency']);
+		// 			$this->SetValue('maxms', $periods['data']['wan']['maxLatency']);
+		// 			$this->SetValue('PacketLoss', $periods['data']['wan']['packetLoss']);
+		// 			$this->SetValue('Uptime', $periods['data']['wan']['uptime']);						
+		// 			$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($periods), 0);
+		// 		}
+		// 	}
+		// }
+
+public function getMetrics() {
 			if ($this->GetStatus() != 102) {
 				return;
 			}
-			$begin = new DateTime(date("Y-m-d H:i:0",strtotime('-1 hours')), (new DateTime)->getTimezone());
-			$end = new DateTime(date("Y-m-d H:i:0"), (new DateTime)->getTimezone());
-			$begin->setTimezone(new DateTimeZone("UTC"));
-			$end->setTimezone(new DateTimeZone("UTC"));
-			$post = [
-				'sites' => array([
-					'beginTimestamp'  => $begin->format("Y-m-d\TH:i:s\Z"),
-					'hostId' => $this->ReadPropertyString("HostID"),
-					#'endTimestamp' => $end->format("Y-m-d\TH:i:s\Z"),
-					'siteId' => $this->ReadPropertyString("SiteID")
-				])
-			];
-			$PostArray=json_encode($post,1);
-			$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);			
-
-			$data = $this->getApiDataPost( '/isp-metrics/5m/query', $PostArray );
-			if ( is_array( $data ) && isset( $data ) ) {
-				foreach ($data['data']['metrics'] as $metrics) {
-					$periods = end($metrics['periods']);
-					$aktDate = new DateTime($periods['metricTime'], (new DateTimeZone("UTC")));
-					$aktDate->setTimezone((new DateTime)->getTimezone());
-					$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
-					$this->SetValue('AVGms', $periods['data']['wan']['avgLatency']);
-					$this->SetValue('maxms', $periods['data']['wan']['maxLatency']);
-					$this->SetValue('PacketLoss', $periods['data']['wan']['packetLoss']);
-					$this->SetValue('Uptime', $periods['data']['wan']['uptime']);						
-					$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($periods), 0);
+			$begin = new DateTime('now',(new DateTimeZone("UTC"))) ;
+			$begin->modify('-1 hours');
+			$data = $this->getApiData( '/isp-metrics/5m?beginTimestamp='.$begin->format("Y-m-d\TH:i:s\Z"));
+			$this->SendDebug("UnifiSiteApi", "APi Aufruf: " .'/isp-metrics/5m?beginTimestamp='.$begin->format("Y-m-d\TH:i:s\Z"), 0);
+			if (is_array($data) && isset($data['data'])) {
+				
+				foreach ($data['data'] as $entry) {
+					if (isset($entry['hostId']) && $entry['hostId'] === $this->ReadPropertyString("HostID")) {
+						$this->SendDebug("UnifiSiteApi", "Host ID: " . json_encode($entry), 0);
+						 $metrics = $entry['periods'];
+						$lastPeriod = end($metrics);
+						$avgLatency = $lastPeriod['data']['wan']['avgLatency'];
+						$aktDate = new DateTime($lastPeriod['metricTime'], (new DateTimeZone("UTC")));
+						$aktDate->setTimezone((new DateTime)->getTimezone());
+						$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
+						$this->SetValue('AVGms', $lastPeriod['data']['wan']['avgLatency']);
+						$this->SetValue('maxms', $lastPeriod['data']['wan']['maxLatency']);
+						$this->SetValue('PacketLoss', $lastPeriod['data']['wan']['packetLoss']);
+						$this->SetValue('Uptime', $lastPeriod['data']['wan']['uptime']);
+						$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($lastPeriod), 0);
+					}
 				}
 			}
 		}
-
-
 		public function getHosts() {
 			$data[] = $this->getApiData( '/hosts' );			
 			if ( is_array( $data ) && isset( $data ) ) {
