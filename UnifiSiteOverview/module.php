@@ -76,7 +76,7 @@ declare(strict_types=1);
 				return [];
 			}
 			$ch = curl_init();
-			curl_setopt( $ch, CURLOPT_URL, 'https://api.ui.com/ea'.$endpoint );
+			curl_setopt( $ch, CURLOPT_URL, 'https://api.ui.com/v1'.$endpoint );
 			curl_setopt( $ch, CURLOPT_HTTPGET, true );
 			curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
 			curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
@@ -111,7 +111,7 @@ declare(strict_types=1);
 				return [];
 			}
 			$ch = curl_init();
-			curl_setopt( $ch, CURLOPT_URL, 'https://api.ui.com/ea'.$endpoint );
+			curl_setopt( $ch, CURLOPT_URL, 'https://api.ui.com/v1'.$endpoint );
 			curl_setopt( $ch, CURLOPT_POST, true );
 			curl_setopt( $ch, CURLOPT_POSTFIELDS, $PostData );
 			curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
