@@ -193,11 +193,19 @@ declare(strict_types=1);
 				$identWan = 'WAN_' . $suffix;
 				$identIp = 'WANIP_' . $suffix;
 				$identUptime = 'WANUptime_' . $suffix;
+				$identAvgLatency = 'WANAvgLatency_' . $suffix;
+				$identDowntime = 'WANDowntime_' . $suffix;
+				$identMaxLatency = 'WANMaxLatency_' . $suffix;
+				$identPacketLoss = 'WANPacketLoss_' . $suffix;
 				$blockPos = $wanBasePos + ($index * 10);
 
 				$this->MaintainVariable($identWan, $this->Translate($wanName . ' ISP'), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'globe' ], $blockPos, true);
 				$this->MaintainVariable($identIp, $this->Translate($wanName . ' IP'), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'globe' ], $blockPos + 1, true);
 				$this->MaintainVariable($identUptime, $this->Translate($wanName . ' Uptime'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'gauge','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"ColorDisplay":16711680,"IntervalMinValue":0,"IntervalMaxValue":98,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680},{"ColorDisplay":65280,"IntervalMinValue":98,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280}]' ], $blockPos + 2, true);
+				$this->MaintainVariable($identAvgLatency, $this->Translate($wanName . ' Avg Latency 5m'), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-fft', 'SUFFIX'=> ' ms' ], $blockPos + 3, true);
+				$this->MaintainVariable($identDowntime, $this->Translate($wanName . ' Downtime 5m'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'clock', 'SUFFIX'=> ' %' ], $blockPos + 4, true);
+				$this->MaintainVariable($identMaxLatency, $this->Translate($wanName . ' Max Latency 5m'), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-fft', 'SUFFIX'=> ' ms' ], $blockPos + 5, true);
+				$this->MaintainVariable($identPacketLoss, $this->Translate($wanName . ' Packetloss 5m'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-line', 'SUFFIX'=> ' %' ], $blockPos + 6, true);
 
 				$varId = @IPS_GetObjectIDByIdent($identWan, $this->InstanceID);
 				if ($varId !== false) {
@@ -211,10 +219,30 @@ declare(strict_types=1);
 				if ($varId !== false) {
 					IPS_SetPosition($varId, $blockPos + 2);
 				}
+				$varId = @IPS_GetObjectIDByIdent($identAvgLatency, $this->InstanceID);
+				if ($varId !== false) {
+					IPS_SetPosition($varId, $blockPos + 3);
+				}
+				$varId = @IPS_GetObjectIDByIdent($identDowntime, $this->InstanceID);
+				if ($varId !== false) {
+					IPS_SetPosition($varId, $blockPos + 4);
+				}
+				$varId = @IPS_GetObjectIDByIdent($identMaxLatency, $this->InstanceID);
+				if ($varId !== false) {
+					IPS_SetPosition($varId, $blockPos + 5);
+				}
+				$varId = @IPS_GetObjectIDByIdent($identPacketLoss, $this->InstanceID);
+				if ($varId !== false) {
+					IPS_SetPosition($varId, $blockPos + 6);
+				}
 
 				$enabledIdents[$identWan] = true;
 				$enabledIdents[$identIp] = true;
 				$enabledIdents[$identUptime] = true;
+				$enabledIdents[$identAvgLatency] = true;
+				$enabledIdents[$identDowntime] = true;
+				$enabledIdents[$identMaxLatency] = true;
+				$enabledIdents[$identPacketLoss] = true;
 			}
 
 			foreach (IPS_GetChildrenIDs($this->InstanceID) as $childId) {
@@ -224,7 +252,7 @@ declare(strict_types=1);
 				}
 
 				$ident = $object['ObjectIdent'];
-				if (strpos($ident, 'WAN_') === 0 || strpos($ident, 'WANIP_') === 0 || strpos($ident, 'WANUptime_') === 0) {
+				if (strpos($ident, 'WAN_') === 0 || strpos($ident, 'WANIP_') === 0 || strpos($ident, 'WANUptime_') === 0 || strpos($ident, 'WANAvgLatency_') === 0 || strpos($ident, 'WANDowntime_') === 0 || strpos($ident, 'WANMaxLatency_') === 0 || strpos($ident, 'WANPacketLoss_') === 0) {
 					if (!isset($enabledIdents[$ident])) {
 						$this->MaintainVariable($ident, '', 3, '', 0, false);
 					}
@@ -232,6 +260,25 @@ declare(strict_types=1);
 			}
 
 			return $vpos;
+		}
+
+		private function getWanMetricFromPeriodData(array $periodData, string $wanName): array
+		{
+			if (isset($periodData[$wanName]) && is_array($periodData[$wanName])) {
+				return $periodData[$wanName];
+			}
+
+			if (isset($periodData['wans']) && is_array($periodData['wans']) && isset($periodData['wans'][$wanName]) && is_array($periodData['wans'][$wanName])) {
+				return $periodData['wans'][$wanName];
+			}
+
+			// Legacy payloads sometimes only provide "wan" (without WAN name).
+			// Only map this fallback to the primary WAN, never to WAN2/WAN3/etc.
+			if ($wanName === 'WAN' && isset($periodData['wan']) && is_array($periodData['wan'])) {
+				return $periodData['wan'];
+			}
+
+			return [];
 		}
 
 		function timerRun() {
@@ -361,16 +408,28 @@ public function getMetrics() {
 						continue;
 					}
 					if (isset($entry['hostId']) && $entry['hostId'] === $this->ReadPropertyString("HostID")) {
-						$this->SendDebug("UnifiSiteApi", "Host ID: " . json_encode($entry), 0);
+						$this->SendDebug("UnifiSiteApi", "Metrics: " . json_encode($entry), 0);
 						 $metrics = $entry['periods'];
 						$lastPeriod = end($metrics);
+						$periodData = (isset($lastPeriod['data']) && is_array($lastPeriod['data'])) ? $lastPeriod['data'] : [];
+						$wanMetrics = (isset($periodData['wan']) && is_array($periodData['wan'])) ? $periodData['wan'] : [];
 						$aktDate = new DateTime($lastPeriod['metricTime'], (new DateTimeZone("UTC")));
 						$aktDate->setTimezone((new DateTime)->getTimezone());
 						$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
-						$this->SetValue('AVGms', $lastPeriod['data']['wan']['avgLatency']);
-						$this->SetValue('maxms', $lastPeriod['data']['wan']['maxLatency']);
-						$this->SetValue('PacketLoss', $lastPeriod['data']['wan']['packetLoss']);
-						$this->SetValue('Uptime', $lastPeriod['data']['wan']['uptime']);
+						$this->SetValue('AVGms', isset($wanMetrics['avgLatency']) ? $wanMetrics['avgLatency'] : 0);
+						$this->SetValue('maxms', isset($wanMetrics['maxLatency']) ? $wanMetrics['maxLatency'] : 0);
+						$this->SetValue('PacketLoss', isset($wanMetrics['packetLoss']) ? $wanMetrics['packetLoss'] : 0);
+						$this->SetValue('Uptime', isset($wanMetrics['uptime']) ? $wanMetrics['uptime'] : 0);
+
+						foreach ($this->getEnabledWANNames() as $wanName) {
+							$suffix = $this->sanitizeIdent($wanName);
+							$wanPeriodMetrics = $this->getWanMetricFromPeriodData($periodData, $wanName);
+
+							$this->SetValue('WANAvgLatency_' . $suffix, isset($wanPeriodMetrics['avgLatency']) ? $wanPeriodMetrics['avgLatency'] : 0);
+							$this->SetValue('WANDowntime_' . $suffix, isset($wanPeriodMetrics['downtime']) ? $wanPeriodMetrics['downtime'] : 0);
+							$this->SetValue('WANMaxLatency_' . $suffix, isset($wanPeriodMetrics['maxLatency']) ? $wanPeriodMetrics['maxLatency'] : 0);
+							$this->SetValue('WANPacketLoss_' . $suffix, isset($wanPeriodMetrics['packetLoss']) ? $wanPeriodMetrics['packetLoss'] : 0);
+						}
 						$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($lastPeriod), 0);
 					}
 				}
@@ -460,6 +519,10 @@ public function getMetrics() {
 				$this->SetValue('WAN_' . $suffix, isset($wanData['ispInfo']['name']) ? $wanData['ispInfo']['name'] : '');
 				$this->SetValue('WANIP_' . $suffix, isset($wanData['externalIp']) ? $wanData['externalIp'] : '');
 				$this->SetValue('WANUptime_' . $suffix, isset($wanData['wanUptime']) ? $wanData['wanUptime'] : 0);
+				$this->SetValue('WANAvgLatency_' . $suffix, isset($wanData['avgLatency']) ? $wanData['avgLatency'] : 0);
+				$this->SetValue('WANDowntime_' . $suffix, isset($wanData['downtime']) ? $wanData['downtime'] : 0);
+				$this->SetValue('WANMaxLatency_' . $suffix, isset($wanData['maxLatency']) ? $wanData['maxLatency'] : 0);
+				$this->SetValue('WANPacketLoss_' . $suffix, isset($wanData['packetLoss']) ? $wanData['packetLoss'] : 0);
 			}
 		}
 
