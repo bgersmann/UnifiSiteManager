@@ -416,19 +416,35 @@ public function getMetrics() {
 						$aktDate = new DateTime($lastPeriod['metricTime'], (new DateTimeZone("UTC")));
 						$aktDate->setTimezone((new DateTime)->getTimezone());
 						$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
-						$this->SetValue('AVGms', isset($wanMetrics['avgLatency']) ? $wanMetrics['avgLatency'] : 0);
-						$this->SetValue('maxms', isset($wanMetrics['maxLatency']) ? $wanMetrics['maxLatency'] : 0);
-						$this->SetValue('PacketLoss', isset($wanMetrics['packetLoss']) ? $wanMetrics['packetLoss'] : 0);
-						$this->SetValue('Uptime', isset($wanMetrics['uptime']) ? $wanMetrics['uptime'] : 0);
+						if (isset($wanMetrics['avgLatency'])) {
+							$this->SetValue('AVGms', $wanMetrics['avgLatency']);
+						}
+						if (isset($wanMetrics['maxLatency'])) {
+							$this->SetValue('maxms', $wanMetrics['maxLatency']);
+						}
+						if (isset($wanMetrics['packetLoss'])) {
+							$this->SetValue('PacketLoss', $wanMetrics['packetLoss']);
+						}
+						if (isset($wanMetrics['uptime'])) {
+							$this->SetValue('Uptime', $wanMetrics['uptime']);
+						}
 
 						foreach ($this->getEnabledWANNames() as $wanName) {
 							$suffix = $this->sanitizeIdent($wanName);
 							$wanPeriodMetrics = $this->getWanMetricFromPeriodData($periodData, $wanName);
 
-							$this->SetValue('WANAvgLatency_' . $suffix, isset($wanPeriodMetrics['avgLatency']) ? $wanPeriodMetrics['avgLatency'] : 0);
-							$this->SetValue('WANDowntime_' . $suffix, isset($wanPeriodMetrics['downtime']) ? $wanPeriodMetrics['downtime'] : 0);
-							$this->SetValue('WANMaxLatency_' . $suffix, isset($wanPeriodMetrics['maxLatency']) ? $wanPeriodMetrics['maxLatency'] : 0);
-							$this->SetValue('WANPacketLoss_' . $suffix, isset($wanPeriodMetrics['packetLoss']) ? $wanPeriodMetrics['packetLoss'] : 0);
+							if (isset($wanPeriodMetrics['avgLatency'])) {
+								$this->SetValue('WANAvgLatency_' . $suffix, $wanPeriodMetrics['avgLatency']);
+							}
+							if (isset($wanPeriodMetrics['downtime'])) {
+								$this->SetValue('WANDowntime_' . $suffix, $wanPeriodMetrics['downtime']);
+							}
+							if (isset($wanPeriodMetrics['maxLatency'])) {
+								$this->SetValue('WANMaxLatency_' . $suffix, $wanPeriodMetrics['maxLatency']);
+							}
+							if (isset($wanPeriodMetrics['packetLoss'])) {
+								$this->SetValue('WANPacketLoss_' . $suffix, $wanPeriodMetrics['packetLoss']);
+							}
 						}
 						$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($lastPeriod), 0);
 					}
@@ -519,10 +535,18 @@ public function getMetrics() {
 				$this->SetValue('WAN_' . $suffix, isset($wanData['ispInfo']['name']) ? $wanData['ispInfo']['name'] : '');
 				$this->SetValue('WANIP_' . $suffix, isset($wanData['externalIp']) ? $wanData['externalIp'] : '');
 				$this->SetValue('WANUptime_' . $suffix, isset($wanData['wanUptime']) ? $wanData['wanUptime'] : 0);
-				$this->SetValue('WANAvgLatency_' . $suffix, isset($wanData['avgLatency']) ? $wanData['avgLatency'] : 0);
-				$this->SetValue('WANDowntime_' . $suffix, isset($wanData['downtime']) ? $wanData['downtime'] : 0);
-				$this->SetValue('WANMaxLatency_' . $suffix, isset($wanData['maxLatency']) ? $wanData['maxLatency'] : 0);
-				$this->SetValue('WANPacketLoss_' . $suffix, isset($wanData['packetLoss']) ? $wanData['packetLoss'] : 0);
+				if (isset($wanData['avgLatency'])) {
+					$this->SetValue('WANAvgLatency_' . $suffix, $wanData['avgLatency']);
+				}
+				if (isset($wanData['downtime'])) {
+					$this->SetValue('WANDowntime_' . $suffix, $wanData['downtime']);
+				}
+				if (isset($wanData['maxLatency'])) {
+					$this->SetValue('WANMaxLatency_' . $suffix, $wanData['maxLatency']);
+				}
+				if (isset($wanData['packetLoss'])) {
+					$this->SetValue('WANPacketLoss_' . $suffix, $wanData['packetLoss']);
+				}
 			}
 		}
 
