@@ -281,6 +281,111 @@ declare(strict_types=1);
 			return [];
 		}
 
+		private function getArchiveInstanceId(): int
+		{
+			$archiveInstances = IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}');
+			if (!is_array($archiveInstances) || count($archiveInstances) === 0) {
+				return 0;
+			}
+
+			return (int) $archiveInstances[0];
+		}
+
+		private function getMetricTimestamp(string $metricTime): int
+		{
+			$metricDate = new DateTime($metricTime, new DateTimeZone('UTC'));
+			$metricDate->setTimezone((new DateTime())->getTimezone());
+
+			return $metricDate->getTimestamp();
+		}
+
+		private function normalizeArchiveValue(int $varId, $value)
+		{
+			$varInfo = IPS_GetVariable($varId);
+			if ($varInfo['VariableType'] === 1) {
+				return (int) round((float) $value);
+			}
+
+			if ($varInfo['VariableType'] === 2) {
+				return (float) $value;
+			}
+
+			return $value;
+		}
+
+		private function filterMissingArchiveValues(int $archiveId, int $varId, array $values): array
+		{
+			if (count($values) === 0) {
+				return [];
+			}
+
+			$timestamps = array_column($values, 'TimeStamp');
+			$startTime = (int) min($timestamps);
+			$endTime = (int) max($timestamps) + 1;
+
+			$existingValues = @AC_GetLoggedValues($archiveId, $varId, $startTime, $endTime, 0);
+			$existingByTimestamp = [];
+			if (is_array($existingValues)) {
+				foreach ($existingValues as $entry) {
+					if (isset($entry['TimeStamp'])) {
+						$existingByTimestamp[(int) $entry['TimeStamp']] = true;
+					}
+				}
+			}
+
+			$missingValues = [];
+			foreach ($values as $value) {
+				if (!isset($existingByTimestamp[(int) $value['TimeStamp']])) {
+					$missingValues[] = $value;
+				}
+			}
+
+			return $missingValues;
+		}
+
+		private function archivePeriodMetrics(array $periods, array $metricToIdentMap, ?string $wanName = null): void
+		{
+			$archiveId = $this->getArchiveInstanceId();
+			if ($archiveId === 0) {
+				return;
+			}
+
+			foreach ($metricToIdentMap as $metricName => $ident) {
+				$varId = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+				if ($varId === false) {
+					continue;
+				}
+
+				$valuesToArchive = [];
+				foreach ($periods as $period) {
+					if (!isset($period['metricTime']) || !isset($period['data']) || !is_array($period['data'])) {
+						continue;
+					}
+
+					$periodData = $period['data'];
+					$metricData = $wanName === null
+						? ((isset($periodData['wan']) && is_array($periodData['wan'])) ? $periodData['wan'] : [])
+						: $this->getWanMetricFromPeriodData($periodData, $wanName);
+
+					if (!isset($metricData[$metricName])) {
+						continue;
+					}
+
+					$valuesToArchive[] = [
+						'TimeStamp' => $this->getMetricTimestamp((string) $period['metricTime']),
+						'Value'     => $this->normalizeArchiveValue($varId, $metricData[$metricName])
+					];
+				}
+
+				$valuesToArchive = $this->filterMissingArchiveValues($archiveId, (int) $varId, $valuesToArchive);
+				if (count($valuesToArchive) === 0) {
+					continue;
+				}
+
+				@AC_AddLoggedValues($archiveId, (int) $varId, $valuesToArchive);
+			}
+		}
+
 		function timerRun() {
 			$this->getMetrics();
 			$this->getSiteData();
@@ -409,13 +514,32 @@ public function getMetrics() {
 					}
 					if (isset($entry['hostId']) && $entry['hostId'] === $this->ReadPropertyString("HostID")) {
 						$this->SendDebug("UnifiSiteApi", "Metrics: " . json_encode($entry), 0);
-						 $metrics = $entry['periods'];
+						$metrics = (isset($entry['periods']) && is_array($entry['periods'])) ? $entry['periods'] : [];
+						if (count($metrics) === 0) {
+							continue;
+						}
+
+						$this->archivePeriodMetrics($metrics, [
+							'avgLatency' => 'AVGms',
+							'maxLatency' => 'maxms',
+							'packetLoss' => 'PacketLoss',
+							'uptime' => 'Uptime'
+						]);
+
+						foreach ($this->getEnabledWANNames() as $wanName) {
+							$suffix = $this->sanitizeIdent($wanName);
+							$this->archivePeriodMetrics($metrics, [
+								'avgLatency' => 'WANAvgLatency_' . $suffix,
+								'downtime' => 'WANDowntime_' . $suffix,
+								'maxLatency' => 'WANMaxLatency_' . $suffix,
+								'packetLoss' => 'WANPacketLoss_' . $suffix
+							], $wanName);
+						}
+
 						$lastPeriod = end($metrics);
 						$periodData = (isset($lastPeriod['data']) && is_array($lastPeriod['data'])) ? $lastPeriod['data'] : [];
 						$wanMetrics = (isset($periodData['wan']) && is_array($periodData['wan'])) ? $periodData['wan'] : [];
-						$aktDate = new DateTime($lastPeriod['metricTime'], (new DateTimeZone("UTC")));
-						$aktDate->setTimezone((new DateTime)->getTimezone());
-						$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
+						$this->SetValue('LastUpdate', $this->getMetricTimestamp((string) $lastPeriod['metricTime']));
 						if (isset($wanMetrics['avgLatency'])) {
 							$this->SetValue('AVGms', $wanMetrics['avgLatency']);
 						}
