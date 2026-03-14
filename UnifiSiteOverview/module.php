@@ -498,9 +498,9 @@ declare(strict_types=1);
 		// }
 
 public function getMetrics() {
-			if ($this->GetStatus() != 102) {
-				return;
-			}
+			// if ($this->GetStatus() != 102) {
+			// 	return;
+			// }
 			$selectedSiteId = $this->ReadPropertyString('SiteID');
 			$begin = new DateTime('now',(new DateTimeZone("UTC"))) ;
 			$begin->modify('-1 hours');
@@ -637,9 +637,9 @@ public function getMetrics() {
 		}
 
 		public function getSiteData() {
-			if ($this->GetStatus() != 102) {
-				return;
-			}
+			// if ($this->GetStatus() != 102) {
+			// 	return;
+			// }
 			$site = $this->getSiteBySelection();
 			if ($site === null) {
 				return;
