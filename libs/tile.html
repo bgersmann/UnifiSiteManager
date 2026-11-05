@@ -1,0 +1,367 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/icons.js"></script>
+<style>
+    :root {
+        /* --accent-color, --content-color and --card-color are provided by the html-sdk. */
+        --on-accent: #101114;
+        --ok: #19d400;
+        --warn: #f5b800;
+        --err: #f55143;
+        --muted: rgba(128, 128, 128, .95);
+        --muted: color-mix(in srgb, var(--content-color) 62%, transparent);
+        --track: rgba(128, 128, 128, .22);
+        --track: color-mix(in srgb, var(--content-color) 14%, transparent);
+        --line: rgba(128, 128, 128, .18);
+        --line: color-mix(in srgb, var(--content-color) 10%, transparent);
+        --warn-text: var(--warn);
+        --warn-text: color-mix(in srgb, var(--warn) 72%, var(--content-color));
+        --err-text: var(--err);
+        --err-text: color-mix(in srgb, var(--err) 85%, var(--content-color));
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    /* The margins of the html-sdk become padding, so that the height of the tile is known. */
+    body { margin: 0 !important; }
+    #t { height: 100%; display: flex; flex-direction: column; gap: .6em; overflow: hidden; }
+    .hid { display: none !important; }
+    .narrow .wide-only { display: none !important; }
+    body:not(.roomy) .roomy-only { display: none !important; }
+
+    .head { display: flex; align-items: center; gap: .7em; min-width: 0; padding-right: 1.6em; flex: none; }
+    .ic { position: relative; font-size: 1.3em; width: 1.3em; text-align: center; flex: none; line-height: 1; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    .ic .dot { position: absolute; right: -4px; bottom: -3px; box-shadow: 0 0 0 2px var(--card-color); }
+    .ok { background: var(--ok); }
+    .warn { background: var(--warn); }
+    .err { background: var(--err); }
+    .ht { min-width: 0; line-height: 1.25; }
+    .ht div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sub { font-size: .78em; color: var(--muted); }
+    /* Symcon draws icon and name itself when the tile has a title bar. */
+    .head .inline-dot { display: none; }
+    .titled .head { gap: .45em; }
+    .titled .head .ic, .titled .head .name { display: none; }
+    .titled .head .inline-dot { display: inline-block; }
+
+    .kpis { display: flex; gap: .55em; flex: none; }
+    .kpi { flex: 1 1 0; min-width: 0; line-height: 1.15; }
+    .kpi .v { font-size: 1.55em; white-space: nowrap; }
+    .kpi .v small { font-size: .55em; color: var(--muted); }
+    .kpi .l { font-size: .74em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi.warn-v .v { color: var(--warn-text); }
+    .kpi.err-v .v { color: var(--err-text); }
+    .kpi.warn-v, .kpi.err-v { background: none; }
+
+    .bar { display: flex; align-items: center; justify-content: space-between; gap: .7em; flex: none; min-height: 1.6em; font-size: .74em; color: var(--muted); }
+    .readout { display: flex; gap: .85em; min-width: 0; white-space: nowrap; overflow: hidden; }
+    .readout span { display: inline-flex; align-items: center; gap: 4px; }
+    .readout .now { color: var(--content-color); }
+    .readout s { display: inline-block; text-decoration: none; }
+    .sw-line { width: 12px; height: 2px; border-radius: 1px; background: var(--accent-color); }
+    .sw-band { width: 12px; height: 9px; border-radius: 2px; background: var(--accent-color); opacity: .22; }
+    .sw-tick { width: 2px; height: 9px; border-radius: 1px; background: var(--warn); }
+    .ranges { display: flex; gap: 2px; flex: none; }
+    .range { border: 0; font: inherit; color: var(--muted); background: none; padding: 1px 6px; border-radius: 9px; cursor: pointer; }
+    .range.on { background: var(--track); color: var(--content-color); }
+
+    .chart { position: relative; flex: 1 1 56px; min-height: 56px; min-width: 0; touch-action: pan-y; cursor: crosshair; }
+    .chart svg { position: absolute; inset: 0; display: block; }
+    .chart text { font-size: 10px; fill: var(--muted); }
+    .chart .grid { stroke: var(--line); stroke-width: 1; }
+    .chart .band { fill: var(--accent-color); opacity: .22; }
+    .chart .avg { fill: none; stroke: var(--accent-color); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .chart .tick-warn { fill: var(--warn); }
+    .chart .tick-err { fill: var(--err); }
+    .chart .cross { stroke: var(--muted); stroke-width: 1; }
+    .chart .point { fill: var(--accent-color); stroke: var(--card-color); stroke-width: 2; }
+    .chart .nodata { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: .85em; color: var(--muted); }
+
+    .wans { display: flex; flex-direction: column; flex: none; }
+    .wan { display: flex; align-items: center; gap: .55em; padding: .26em 0; border-top: 1px solid var(--line); font-size: .85em; line-height: 1.3; min-width: 0; }
+    .wan .n { flex: none; }
+    .wan .isp { flex: 1 1 auto; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wan .ip { flex: none; color: var(--muted); }
+    .wan .state { flex: none; white-space: nowrap; color: var(--muted); }
+    .chip { font-size: .86em; padding: 1px 7px; border-radius: 10px; background: var(--accent-color); color: var(--on-accent); white-space: nowrap; }
+    .txtwarn { color: var(--warn-text) !important; }
+    .txterr { color: var(--err-text) !important; }
+
+    .foot { display: flex; gap: .85em; align-items: center; font-size: .76em; color: var(--muted); white-space: nowrap; overflow: hidden; flex: none; }
+    .foot span { display: inline-flex; align-items: center; gap: 4px; }
+    .foot .upd { color: var(--warn-text); margin-left: auto; }
+    .narrow .foot .upd { margin-left: 0; }
+    .empty { margin: auto; text-align: center; color: var(--muted); font-size: .9em; }
+</style>
+
+<div id="t"></div>
+
+<script>
+    // Initial state of the instance; afterwards the module pushes the complete state as JSON.
+    let state = /*INITIAL_STATE*/null;
+
+    const params = new URLSearchParams(window.location.search);
+    const px = (name, fallback) => {
+        const value = parseFloat(params.get(name));
+        return isNaN(value) ? fallback : value;
+    };
+    const padTop = px('margintop', 15), padSide = px('marginside', 15), padBottom = px('marginbottom', 15);
+    const box = document.getElementById('t');
+    box.style.padding = `${padTop}px ${padSide}px ${padBottom}px`;
+    // The visualization reserves a larger top margin when it draws a title bar itself.
+    if (padTop >= 40) {
+        document.body.classList.add('titled');
+    }
+    const accent = (params.get('accentcolor') || '00cdab').padStart(6, '0');
+    const accentValue = parseInt(accent, 16);
+    const luminance = (.299 * (accentValue >> 16) + .587 * (accentValue >> 8 & 255) + .114 * (accentValue & 255)) / 255;
+    document.documentElement.style.setProperty('--on-accent', luminance > .5 ? '#101114' : '#ffffff');
+
+    const T = (text) => (typeof translate === 'function' ? translate(text) : text);
+    // Names come from the API and must never be treated as markup.
+    const E = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const num = (value, digits = 0) => Number(value).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const icon = (name) => `<i class="fa-light fa-${name}"></i>`;
+    const has = (value) => value !== undefined && value !== null && value !== '';
+    const clock = (time) => new Date(time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Same limits as the intervals of the status variables; latency is a rule of thumb for a WAN.
+    const latencyLevel = (ms) => (ms >= 250 ? 'err' : ms >= 100 ? 'warn' : '');
+    const lossLevel = (percent) => (percent >= 5 ? 'err' : percent >= 1 ? 'warn' : '');
+    const uptimeLevel = (percent) => (percent < 98 ? 'err' : '');
+
+    // Metrics arrive with a delay of about 15 minutes; only clearly older data counts as stale.
+    const STALE_AFTER = 1800;
+    const RANGES = [[1, '1h'], [6, '6h'], [24, '24h']];
+    let rangeHours = 24;
+
+    const kpi = (value, unit, label, level = '') => `<div class="kpi ${level ? `${level}-v` : ''}"><div class="v">${value}<small> ${E(unit)}</small></div><div class="l">${E(label)}</div></div>`;
+
+    function pointsInRange() {
+        const history = state.history || [];
+        if (!history.length) {
+            return [];
+        }
+        const from = history[history.length - 1][0] - rangeHours * 3600;
+        return history.filter((p) => p[0] >= from);
+    }
+
+    function legendHTML() {
+        const points = pointsInRange();
+        if (!points.length) {
+            return '';
+        }
+        const peak = Math.max(...points.map((p) => p[2]));
+        const mean = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+        const loss = points.some((p) => p[3] > 0 || p[4] > 0);
+        return `<span><s class="sw-line"></s>${E(T('Avg'))} ${num(mean)} ms</span>
+            <span class="wide-only"><s class="sw-band"></s>${E(T('Max'))} ${num(peak)} ms</span>
+            ${loss ? `<span class="wide-only"><s class="sw-tick"></s>${E(T('Loss'))}</span>` : ''}`;
+    }
+
+    function headStatus(stale) {
+        const wans = state.wans || [];
+        if (state.metricsError || state.siteError || (wans.length && !wans.some((w) => w.up))) {
+            return 'err';
+        }
+        return stale || state.offline > 0 || state.critical > 0 || state.issues > 0 ? 'warn' : 'ok';
+    }
+
+    function render() {
+        if (!state || !has(state.name)) {
+            box.innerHTML = `<div class="empty">${E(T(state && state.inactive ? 'Instance inactive' : 'No data yet'))}</div>`;
+            return;
+        }
+        clearSelection();
+        const history = state.history || [];
+        const last = history.length ? history[history.length - 1] : null;
+        const stale = has(state.time) && Date.now() / 1000 - state.time > STALE_AFTER;
+        const failed = state.metricsError || state.siteError;
+        const status = headStatus(stale);
+        const sub = failed ? T('No connection to the API') : [state.isp, state.activeWan, state.gateway].filter(has).join(' · ');
+
+        const wans = (state.wans || []).map((w) => {
+            const active = w.name === state.activeWan;
+            const stateText = !w.up ? `<span class="state txterr">${E(T('Down'))}</span>`
+                : active ? `<span class="chip">${E(T('active'))}</span>`
+                : has(w.uptime) ? `<span class="state">${num(w.uptime)} %</span>` : '';
+            const dot = !w.up ? 'err' : w.issues > 0 ? 'warn' : 'ok';
+            return `<div class="wan" data-p="3"><span class="dot ${dot}"></span><span class="n">${E(w.name)}</span><span class="isp">${E(w.isp)}</span><span class="ip roomy-only">${E(w.ip)}</span>${stateText}</div>`;
+        }).join('');
+
+        const foot = [];
+        if (state.offline > 0) {
+            foot.push(`<span class="txtwarn">${icon('diagram-project')}${num(state.offline)} / ${num(state.devices)} ${E(T('offline'))}</span>`);
+        } else {
+            foot.push(`<span>${icon('diagram-project')}${num(state.devices ?? 0)}</span>`);
+        }
+        foot.push(`<span>${icon('wifi')}${num(state.wifi ?? 0)}</span><span>${icon('ethernet')}${num(state.wired ?? 0)}</span>`);
+        if (stale) {
+            foot.push(`<span class="txtwarn">${icon('clock')}${clock(state.time)}</span>`);
+        } else if (has(state.time)) {
+            foot.push(`<span class="wide-only">${icon('clock')}${clock(state.time)}</span>`);
+        }
+        if (state.updates > 0) {
+            foot.push(`<span class="upd">${icon('arrow-up-from-bracket')}${num(state.updates)}</span>`);
+        }
+
+        box.innerHTML = `<div class="head">
+                <div class="ic">${icon('globe')}<span class="dot ${status}"></span></div>
+                <div class="ht"><div class="name">${E(state.name)}</div><div class="sub ${failed ? 'txterr' : ''}"><span class="dot inline-dot ${status}"></span> ${E(sub)}</div></div>
+            </div>
+            <div class="kpis">
+                ${kpi(last ? num(last[1]) : '–', 'ms', T('Latency'), last ? latencyLevel(last[1]) : '')}
+                <div class="kpi wide-only ${last ? `${latencyLevel(last[2])}-v` : ''}"><div class="v">${last ? num(last[2]) : '–'}<small> ms</small></div><div class="l">${E(T('Max'))}</div></div>
+                ${kpi(last ? num(last[3]) : '–', '%', T('Loss'), last ? lossLevel(last[3]) : '')}
+                <div class="kpi wide-only ${has(state.uptime) ? `${uptimeLevel(state.uptime)}-v` : ''}"><div class="v">${has(state.uptime) ? num(state.uptime) : '–'}<small> %</small></div><div class="l">${E(T('Uptime'))}</div></div>
+            </div>
+            <div class="bar" data-p="5"><div class="readout" id="readout">${legendHTML()}</div><div class="ranges">${RANGES.map(([hours, label]) => `<button class="range ${hours === rangeHours ? 'on' : ''}" data-range="${hours}">${label}</button>`).join('')}</div></div>
+            <div class="chart" id="chart"></div>
+            ${wans ? `<div class="wans">${wans}</div>` : ''}
+            <div class="foot" data-p="4">${foot.join('')}</div>`;
+        fit();
+    }
+
+    // The chart shows the last periods of the selected range on one axis in ms: the line is the
+    // average, the band reaches up to the maximum; packet loss and downtime mark the baseline.
+    let scale = null;
+    function draw(selected = null) {
+        const chart = document.getElementById('chart');
+        if (!chart) {
+            return;
+        }
+        const width = chart.clientWidth, height = chart.clientHeight;
+        const points = pointsInRange();
+        scale = null;
+        if (points.length < 2 || width < 20 || height < 20) {
+            chart.innerHTML = points.length < 2 ? `<div class="nodata">${E(T('No data yet'))}</div>` : '';
+            return;
+        }
+        const axis = height >= 70 ? 13 : 0;
+        const plot = height - axis - 1;
+        const peak = Math.max(...points.map((p) => p[2]), 10);
+        const step = peak <= 20 ? 5 : peak <= 50 ? 10 : peak <= 100 ? 25 : peak <= 250 ? 50 : peak <= 500 ? 100 : 250;
+        const top = Math.ceil(peak / step) * step;
+        const from = points[0][0], to = points[points.length - 1][0];
+        const X = (time) => (time - from) / Math.max(to - from, 1) * (width - 1);
+        const Y = (ms) => plot - ms / top * (plot - 8);
+        const coord = (value) => value.toFixed(1);
+
+        // Periods without data stay gaps instead of being bridged by a straight line.
+        const runs = [];
+        points.forEach((p, i) => {
+            if (i === 0 || p[0] - points[i - 1][0] > 900) {
+                runs.push([]);
+            }
+            runs[runs.length - 1].push(p);
+        });
+        const band = runs.filter((run) => run.length > 1).map((run) => `<path class="band" d="M${run.map((p) => `${coord(X(p[0]))} ${coord(Y(p[2]))}`).join('L')}L${run.slice().reverse().map((p) => `${coord(X(p[0]))} ${coord(Y(p[1]))}`).join('L')}Z"/>`).join('');
+        const line = runs.map((run) => `<path class="avg" d="M${run.map((p) => `${coord(X(p[0]))} ${coord(Y(p[1]))}`).join('L')}"/>`).join('');
+        const ticks = points.filter((p) => p[3] > 0 || p[4] > 0).map((p) => {
+            const severe = p[4] > 0 || lossLevel(p[3]) === 'err';
+            const size = severe ? 10 : 4 + Math.min(p[3], 4);
+            return `<rect class="${severe ? 'tick-err' : 'tick-warn'}" x="${coord(X(p[0]) - 1)}" y="${coord(plot - size)}" width="2" height="${size}" rx="1"/>`;
+        }).join('');
+        const grid = [top, Math.round(top / 2)].map((ms) => `<line class="grid" x1="0" x2="${width}" y1="${coord(Y(ms))}" y2="${coord(Y(ms))}"/><text x="0" y="${coord(Y(ms) - 2)}">${num(ms)}</text>`).join('')
+            + `<line class="grid" x1="0" x2="${width}" y1="${plot}" y2="${plot}"/>`;
+        const labels = axis ? `<text x="0" y="${height - 2}">${E(clock(from))}</text><text x="${width}" y="${height - 2}" text-anchor="end">${E(clock(to))}</text>` : '';
+        let cross = '';
+        if (selected) {
+            cross = `<line class="cross" x1="${coord(X(selected[0]))}" x2="${coord(X(selected[0]))}" y1="0" y2="${plot}"/><circle class="point" cx="${coord(X(selected[0]))}" cy="${coord(Y(selected[1]))}" r="4"/>`;
+        }
+        chart.innerHTML = `<svg width="${width}" height="${height}" role="img" aria-label="${E(T('Latency'))}">${grid}${band}${line}${ticks}${labels}${cross}</svg>`;
+        scale = { points, X, width };
+    }
+
+    // Fits the content into the tile: first the size classes, then everything that is marked with
+    // data-p is hidden, the highest number first, until nothing overflows. The chart takes the rest.
+    function fit() {
+        const width = box.clientWidth - padSide * 2;
+        document.body.classList.toggle('narrow', width < 200);
+        document.body.classList.toggle('roomy', width >= 340);
+        box.querySelectorAll('.hid').forEach((e) => e.classList.remove('hid'));
+        const overflow = () => box.scrollHeight > box.clientHeight + 1;
+        const steps = [...new Set([...box.querySelectorAll('[data-p]')].map((e) => Number(e.dataset.p)))].sort((a, b) => b - a);
+        for (const step of steps) {
+            if (!overflow()) {
+                break;
+            }
+            const items = [...box.querySelectorAll(`[data-p="${step}"]`)].reverse();
+            for (const item of items) {
+                if (!overflow()) {
+                    break;
+                }
+                item.classList.add('hid');
+            }
+        }
+        draw();
+    }
+
+    // The values of a period replace the legend while pointing at it. A touch display has no way
+    // of leaving a selection, so a tap times out on its own.
+    let selectionTimer = null;
+    function clearSelection() {
+        clearTimeout(selectionTimer);
+        const readout = document.getElementById('readout');
+        if (readout) {
+            readout.innerHTML = legendHTML();
+        }
+        draw();
+    }
+    function select(event) {
+        if (!scale) {
+            return;
+        }
+        const area = document.getElementById('chart').getBoundingClientRect();
+        const x = event.clientX - area.left;
+        let nearest = scale.points[0];
+        for (const p of scale.points) {
+            if (Math.abs(scale.X(p[0]) - x) < Math.abs(scale.X(nearest[0]) - x)) {
+                nearest = p;
+            }
+        }
+        draw(nearest);
+        const readout = document.getElementById('readout');
+        if (readout) {
+            readout.innerHTML = `<span class="now">${clock(nearest[0])}</span><span class="now">${E(T('Avg'))} ${num(nearest[1])}</span>
+                <span class="now">${E(T('Max'))} ${num(nearest[2])} ms</span>
+                <span class="now wide-only">${E(T('Loss'))} ${num(nearest[3])} %</span>
+                ${nearest[4] > 0 ? `<span class="now wide-only txterr">${E(T('Down'))} ${num(nearest[4])} s</span>` : ''}`;
+        }
+        clearTimeout(selectionTimer);
+        selectionTimer = setTimeout(clearSelection, 10000);
+    }
+
+    box.addEventListener('pointerdown', (event) => {
+        if (event.target.closest('#chart')) {
+            select(event);
+        }
+    });
+    box.addEventListener('pointermove', (event) => {
+        if (event.pointerType === 'mouse' && event.target.closest('#chart')) {
+            select(event);
+        }
+    });
+    box.addEventListener('pointerleave', (event) => {
+        if (event.pointerType === 'mouse') {
+            clearSelection();
+        }
+    });
+    box.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-range]');
+        if (button) {
+            rangeHours = Number(button.dataset.range);
+            render();
+        }
+    });
+
+    window.handleMessage = (data) => {
+        state = typeof data === 'string' ? JSON.parse(data) : data;
+        render();
+    };
+
+    window.addEventListener('resize', fit);
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(fit);
+    }
+    render();
+</script>

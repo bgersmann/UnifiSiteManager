@@ -1,8 +1,28 @@
 {
     "translations": {
         "de": {
-            "Translation 1": "Übersetzung 1",
-            "Translation 2": "Übersetzung 2"
+            "Active WAN": "Aktives WAN",
+            "Downtime 5m": "Ausfallzeit 5m",
+            "ISP Speed Download": "ISP-Geschwindigkeit Download",
+            "ISP Speed Upload": "ISP-Geschwindigkeit Upload",
+            "Internet Issues": "Internetprobleme",
+            "Offline Devices": "Geräte offline",
+            "Pending Updates": "Ausstehende Updates",
+            "Critical Notifications": "Kritische Meldungen",
+            "Guest Clients": "Gäste",
+            "WiFi TX Retries": "WLAN TX-Wiederholungen",
+            "Down": "Getrennt",
+            "Up": "Verbunden",
+            "Latency": "Latenz",
+            "Avg": "Ø",
+            "Max": "Max",
+            "Loss": "Verlust",
+            "Uptime": "Uptime",
+            "active": "aktiv",
+            "offline": "offline",
+            "No connection to the API": "Keine Verbindung zur API",
+            "Instance inactive": "Instanz inaktiv",
+            "No data yet": "Noch keine Daten"
         }
     }
 }

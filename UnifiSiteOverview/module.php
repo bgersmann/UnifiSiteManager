@@ -1,8 +1,19 @@
 <?php
 
 declare(strict_types=1);
+
+require_once __DIR__ . '/../libs/UnifiTile.php';
+
 	class UnifiSiteOverview extends IPSModule
 	{
+		use UnifiTile;
+
+		// Number of seconds of metrics which are written to the archive in one run.
+		private const ARCHIVE_WINDOW = 3600;
+
+		// One timer run needs the site list several times; valid for this call only.
+		private $sitesCache = null;
+
 		public function Create()
 		{
 			//Never delete this line!
@@ -13,6 +24,7 @@ declare(strict_types=1);
 			$this->RegisterPropertyString('WANSelection', '[]');
 			$this->RegisterPropertyInteger('Timer', 0);
 			$this->RegisterTimer('Collect Data', 0, "UISPM_timerRun(\$_IPS['TARGET']);");
+			$this->SetVisualizationType(INSTANCE_VISUALIZATION_TYPE_HTML);
 		}
 
 		public function Destroy()
@@ -25,6 +37,7 @@ declare(strict_types=1);
 		{
 			//Never delete this line!
 			parent::ApplyChanges();
+			$this->SetVisualizationType(INSTANCE_VISUALIZATION_TYPE_HTML);
 			$vpos = 100;
 			$this->MaintainVariable( 'SiteName', $this->Translate( 'Name' ), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'circle-info'], $vpos++, 1 );
 			$this->MaintainVariable( 'LastUpdate', $this->Translate( 'Start Zeitraum' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_DATE_TIME ,'ICON'=> 'circle-info'], $vpos++, 1 );
@@ -35,12 +48,23 @@ declare(strict_types=1);
 
 			$this->MaintainVariable( 'AVGms', $this->Translate( 'Average Latency 5m' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-fft','SUFFIX'=> ' ms'], $vpos++, 1 );
 			$this->MaintainVariable( 'maxms', $this->Translate( 'Max Latency 5m' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-fft','SUFFIX'=> ' ms'], $vpos++, 1 );
-			$this->MaintainVariable( 'PacketLoss', $this->Translate( 'Packetloss 5m' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-line','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"IntervalMinValue":0,"IntervalMaxValue":1,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280,"ColorDisplay":65280},{"IntervalMinValue":1,"IntervalMaxValue":5,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16776960,"ColorDisplay":16776960},{"IntervalMinValue":5,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680,"ColorDisplay":16711680}]'], $vpos++, 1 );
-			$this->MaintainVariable( 'Uptime', $this->Translate( 'Uptime 5m' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'gauge','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"ColorDisplay":16711680,"IntervalMinValue":0,"IntervalMaxValue":98,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680},{"ColorDisplay":65280,"IntervalMinValue":98,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280}]'], $vpos++, 1 );
+			$this->MaintainVariable( 'PacketLoss', $this->Translate( 'Packetloss 5m' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-line','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"IntervalMinValue":0,"IntervalMaxValue":1,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280},{"IntervalMinValue":1,"IntervalMaxValue":5,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16776960},{"IntervalMinValue":5,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680}]'], $vpos++, 1 );
+			$this->MaintainVariable( 'Uptime', $this->Translate( 'Uptime 5m' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'gauge','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"IntervalMinValue":0,"IntervalMaxValue":98,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680},{"IntervalMinValue":98,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280}]'], $vpos++, 1 );
 
 			$this->MaintainVariable( 'UnifiDevices', $this->Translate( 'Unifi Devices' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'diagram-project'], $vpos++, 1 );
 			$this->MaintainVariable( 'WifiClients', $this->Translate( 'Wifi Clients' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'laptop'], $vpos++, 1 );
 			$this->MaintainVariable( 'WiredClients', $this->Translate( 'Wired Clients' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'computer-classic'], $vpos++, 1 );
+
+			$this->MaintainVariable( 'ActiveWAN', $this->Translate( 'Active WAN' ), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'globe'], $vpos++, true );
+			$this->MaintainVariable( 'Downtime', $this->Translate( 'Downtime 5m' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'clock','SUFFIX'=> ' s'], $vpos++, true );
+			$this->MaintainVariable( 'ISPDownload', $this->Translate( 'ISP Speed Download' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'arrow-down','SUFFIX'=> ' Mbit/s'], $vpos++, true );
+			$this->MaintainVariable( 'ISPUpload', $this->Translate( 'ISP Speed Upload' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'arrow-up','SUFFIX'=> ' Mbit/s'], $vpos++, true );
+			$this->MaintainVariable( 'InternetIssues', $this->Translate( 'Internet Issues' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'triangle-exclamation'], $vpos++, true );
+			$this->MaintainVariable( 'OfflineDevices', $this->Translate( 'Offline Devices' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'diagram-project'], $vpos++, true );
+			$this->MaintainVariable( 'PendingUpdates', $this->Translate( 'Pending Updates' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'arrow-up-from-bracket'], $vpos++, true );
+			$this->MaintainVariable( 'CriticalNotifications', $this->Translate( 'Critical Notifications' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'bell'], $vpos++, true );
+			$this->MaintainVariable( 'GuestClients', $this->Translate( 'Guest Clients' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'user'], $vpos++, true );
+			$this->MaintainVariable( 'TxRetry', $this->Translate( 'WiFi TX Retries' ), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'wifi','SUFFIX'=> ' %','DIGITS'=> 1], $vpos++, true );
 
 			// Backward compatibility cleanup: remove legacy static WAN variables.
 			$this->MaintainVariable('WAN', '', 3, '', 0, false);
@@ -98,9 +122,19 @@ declare(strict_types=1);
 			return $result;
 		}
 
-		private function getEnabledWANNames(): array
+		/**
+		 * Names of the WANs to maintain. NULL means the selection is unknown right now (nothing saved
+		 * yet and the API gives no answer): the caller must then leave existing variables alone.
+		 */
+		private function getEnabledWANNames(): ?array
 		{
 			$rows = $this->getSelectedWANRows();
+			if (count($rows) === 0) {
+				// The list has never been saved yet: all WANs which are currently available.
+				$available = $this->getAvailableWANNamesForSelectedSite();
+				return count($available) > 0 ? $available : null;
+			}
+
 			$names = [];
 			foreach ($rows as $row) {
 				if ($row['Enabled']) {
@@ -108,48 +142,46 @@ declare(strict_types=1);
 				}
 			}
 
-			$names = array_values(array_unique($names));
-			if (count($names) > 0) {
-				return $names;
-			}
-
-			// If the list has never been saved yet, initialize from currently available WANs.
-			if (count($rows) === 0) {
-				return $this->getAvailableWANNamesForSelectedSite();
-			}
-
-			return [];
+			return array_values(array_unique($names));
 		}
 
 		private function getAvailableWANNamesForSelectedSite(): array
 		{
-			$site = $this->getSiteBySelection();
-			if ($site === null || !isset($site['statistics']['wans']) || !is_array($site['statistics']['wans'])) {
-				return [];
-			}
-
-			return array_values(array_keys($site['statistics']['wans']));
+			return array_values(array_map('strval', array_keys($this->getSiteWans())));
 		}
 
+		private function getSiteWans(): array
+		{
+			$site = $this->getSiteBySelection();
+			$wans = $site['statistics']['wans'] ?? [];
+			return is_array($wans) ? $wans : [];
+		}
+
+		private function getAllSites(): ?array
+		{
+			if ($this->sitesCache === null) {
+				$this->sitesCache = $this->getApiPages('/sites');
+			}
+
+			return $this->sitesCache;
+		}
+
+		/** The selected site; "default" as site means the first site of the selected host. */
 		private function getSiteBySelection(): ?array
 		{
 			$siteId = $this->ReadPropertyString('SiteID');
 			$hostId = $this->ReadPropertyString('HostID');
-			$data = $this->getApiData('/sites');
-
-			if (!isset($data['data']) || !is_array($data['data'])) {
+			if ($siteId === 'default' && $hostId === 'default') {
 				return null;
 			}
 
-			foreach ($data['data'] as $site) {
+			foreach ($this->getAllSites() ?? [] as $site) {
 				if (!isset($site['siteId'])) {
 					continue;
 				}
-
-				if ($site['siteId'] !== $siteId) {
+				if ($siteId !== 'default' && $site['siteId'] !== $siteId) {
 					continue;
 				}
-
 				if (isset($site['hostId']) && $hostId !== 'default' && $site['hostId'] !== $hostId) {
 					continue;
 				}
@@ -162,18 +194,22 @@ declare(strict_types=1);
 
 		private function getWANRowsForForm(): array
 		{
-			$availableWans = $this->getAvailableWANNamesForSelectedSite();
-
 			$selectedMap = [];
 			foreach ($this->getSelectedWANRows() as $row) {
 				$selectedMap[$row['Name']] = $row['Enabled'];
 			}
 
+			// Saved WANs stay in the list while they are unavailable: saving the form without
+			// them would delete their variables.
+			$names = array_values(array_unique(array_merge($this->getAvailableWANNamesForSelectedSite(), array_map('strval', array_keys($selectedMap)))));
+			natcasesort($names);
+
 			$rows = [];
-			foreach ($availableWans as $wanName) {
+			foreach ($names as $wanName) {
 				$rows[] = [
 					'Name'    => $wanName,
-					'Enabled' => $selectedMap[$wanName] ?? ($wanName === 'WAN')
+					// Nothing saved yet: same default as getEnabledWANNames.
+					'Enabled' => $selectedMap[$wanName] ?? (count($selectedMap) === 0)
 				];
 			}
 
@@ -183,6 +219,11 @@ declare(strict_types=1);
 		private function MaintainSelectedWANVariables(int $vpos): int
 		{
 			$enabledWANs = $this->getEnabledWANNames();
+			if ($enabledWANs === null) {
+				// Without an answer of the API the variables and their archive data must survive.
+				$this->SendDebug('UnifiSiteApi', 'WAN selection unknown, WAN variables left unchanged', 0);
+				return $vpos;
+			}
 			natcasesort($enabledWANs);
 			$enabledWANs = array_values($enabledWANs);
 			$enabledIdents = [];
@@ -197,52 +238,29 @@ declare(strict_types=1);
 				$identDowntime = 'WANDowntime_' . $suffix;
 				$identMaxLatency = 'WANMaxLatency_' . $suffix;
 				$identPacketLoss = 'WANPacketLoss_' . $suffix;
+				$identPortUp = 'WANPortUp_' . $suffix;
 				$blockPos = $wanBasePos + ($index * 10);
 
 				$this->MaintainVariable($identWan, $this->Translate($wanName . ' ISP'), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'globe' ], $blockPos, true);
 				$this->MaintainVariable($identIp, $this->Translate($wanName . ' IP'), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'globe' ], $blockPos + 1, true);
-				$this->MaintainVariable($identUptime, $this->Translate($wanName . ' Uptime'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'gauge','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"ColorDisplay":16711680,"IntervalMinValue":0,"IntervalMaxValue":98,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680},{"ColorDisplay":65280,"IntervalMinValue":98,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280}]' ], $blockPos + 2, true);
+				$this->MaintainVariable($identUptime, $this->Translate($wanName . ' Uptime'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'gauge','INTERVALS_ACTIVE'=> true, 'SUFFIX'=> ' %', 'INTERVALS' => '[{"IntervalMinValue":0,"IntervalMaxValue":98,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":16711680},{"IntervalMinValue":98,"IntervalMaxValue":100,"ConstantActive":false,"ConstantValue":"","ConversionFactor":1,"PrefixActive":false,"PrefixValue":"","SuffixActive":false,"SuffixValue":"","DigitsActive":false,"DigitsValue":0,"IconActive":false,"IconValue":"","ColorActive":true,"ColorValue":65280}]' ], $blockPos + 2, true);
 				$this->MaintainVariable($identAvgLatency, $this->Translate($wanName . ' Avg Latency 5m'), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-fft', 'SUFFIX'=> ' ms' ], $blockPos + 3, true);
-				$this->MaintainVariable($identDowntime, $this->Translate($wanName . ' Downtime 5m'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'clock', 'SUFFIX'=> ' %' ], $blockPos + 4, true);
+				$this->MaintainVariable($identDowntime, $this->Translate($wanName . ' Downtime 5m'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'clock', 'SUFFIX'=> ' s' ], $blockPos + 4, true);
 				$this->MaintainVariable($identMaxLatency, $this->Translate($wanName . ' Max Latency 5m'), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-fft', 'SUFFIX'=> ' ms' ], $blockPos + 5, true);
 				$this->MaintainVariable($identPacketLoss, $this->Translate($wanName . ' Packetloss 5m'), 2, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'chart-line', 'SUFFIX'=> ' %' ], $blockPos + 6, true);
 
-				$varId = @IPS_GetObjectIDByIdent($identWan, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos);
-				}
-				$varId = @IPS_GetObjectIDByIdent($identIp, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos + 1);
-				}
-				$varId = @IPS_GetObjectIDByIdent($identUptime, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos + 2);
-				}
-				$varId = @IPS_GetObjectIDByIdent($identAvgLatency, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos + 3);
-				}
-				$varId = @IPS_GetObjectIDByIdent($identDowntime, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos + 4);
-				}
-				$varId = @IPS_GetObjectIDByIdent($identMaxLatency, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos + 5);
-				}
-				$varId = @IPS_GetObjectIDByIdent($identPacketLoss, $this->InstanceID);
-				if ($varId !== false) {
-					IPS_SetPosition($varId, $blockPos + 6);
-				}
+				$this->MaintainVariable($identPortUp, $this->Translate($wanName . ' Port'), 0, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'ICON'=> 'ethernet', 'OPTIONS'=> json_encode([
+					[ 'Caption'=> $this->Translate('Down'), 'ColorActive'=> true, 'ColorValue'=> 16711680, 'IconActive'=> false, 'IconValue'=> '', 'Value'=> false ],
+					[ 'Caption'=> $this->Translate('Up'), 'ColorActive'=> true, 'ColorValue'=> 65280, 'IconActive'=> false, 'IconValue'=> '', 'Value'=> true ]
+				]) ], $blockPos + 7, true);
 
-				$enabledIdents[$identWan] = true;
-				$enabledIdents[$identIp] = true;
-				$enabledIdents[$identUptime] = true;
-				$enabledIdents[$identAvgLatency] = true;
-				$enabledIdents[$identDowntime] = true;
-				$enabledIdents[$identMaxLatency] = true;
-				$enabledIdents[$identPacketLoss] = true;
+				foreach ([$identWan, $identIp, $identUptime, $identAvgLatency, $identDowntime, $identMaxLatency, $identPacketLoss, $identPortUp] as $offset => $ident) {
+					$varId = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+					if ($varId !== false) {
+						IPS_SetPosition($varId, $blockPos + $offset);
+					}
+					$enabledIdents[$ident] = true;
+				}
 			}
 
 			foreach (IPS_GetChildrenIDs($this->InstanceID) as $childId) {
@@ -252,7 +270,7 @@ declare(strict_types=1);
 				}
 
 				$ident = $object['ObjectIdent'];
-				if (strpos($ident, 'WAN_') === 0 || strpos($ident, 'WANIP_') === 0 || strpos($ident, 'WANUptime_') === 0 || strpos($ident, 'WANAvgLatency_') === 0 || strpos($ident, 'WANDowntime_') === 0 || strpos($ident, 'WANMaxLatency_') === 0 || strpos($ident, 'WANPacketLoss_') === 0) {
+				if (strpos($ident, 'WAN_') === 0 || strpos($ident, 'WANIP_') === 0 || strpos($ident, 'WANUptime_') === 0 || strpos($ident, 'WANAvgLatency_') === 0 || strpos($ident, 'WANDowntime_') === 0 || strpos($ident, 'WANMaxLatency_') === 0 || strpos($ident, 'WANPacketLoss_') === 0 || strpos($ident, 'WANPortUp_') === 0) {
 					if (!isset($enabledIdents[$ident])) {
 						$this->MaintainVariable($ident, '', 3, '', 0, false);
 					}
@@ -262,23 +280,42 @@ declare(strict_types=1);
 			return $vpos;
 		}
 
-		private function getWanMetricFromPeriodData(array $periodData, string $wanName): array
+		/**
+		 * The API reports the metrics of one period for the WAN in use, without its name. The name
+		 * follows from the ASN of the provider; with the same provider on several WANs the one with
+		 * the highest failover priority is taken.
+		 */
+		private function getWanNameForMetrics(array $wanMetrics, array $siteWans): ?string
 		{
-			if (isset($periodData[$wanName]) && is_array($periodData[$wanName])) {
-				return $periodData[$wanName];
+			if (count($siteWans) === 0) {
+				return 'WAN';
 			}
 
-			if (isset($periodData['wans']) && is_array($periodData['wans']) && isset($periodData['wans'][$wanName]) && is_array($periodData['wans'][$wanName])) {
-				return $periodData['wans'][$wanName];
+			$asn = (string) ($wanMetrics['ispAsn'] ?? '');
+			$best = null;
+			$bestPriority = PHP_INT_MAX;
+			foreach ($siteWans as $name => $wan) {
+				if ($asn === '' || (string) ($wan['ispInfo']['asn'] ?? '') !== $asn) {
+					continue;
+				}
+				$priority = (int) ($wan['failoverPriority'] ?? PHP_INT_MAX);
+				if ($priority < $bestPriority || $best === null) {
+					$best = (string) $name;
+					$bestPriority = $priority;
+				}
 			}
 
-			// Legacy payloads sometimes only provide "wan" (without WAN name).
-			// Only map this fallback to the primary WAN, never to WAN2/WAN3/etc.
-			if ($wanName === 'WAN' && isset($periodData['wan']) && is_array($periodData['wan'])) {
-				return $periodData['wan'];
+			return $best;
+		}
+
+		private function getWanMetricFromPeriodData(array $periodData, string $wanName, array $siteWans): array
+		{
+			$wanMetrics = $periodData['wan'] ?? null;
+			if (!is_array($wanMetrics) || $this->getWanNameForMetrics($wanMetrics, $siteWans) !== $wanName) {
+				return [];
 			}
 
-			return [];
+			return $wanMetrics;
 		}
 
 		private function getArchiveInstanceId(): int
@@ -343,7 +380,7 @@ declare(strict_types=1);
 			return $missingValues;
 		}
 
-		private function archivePeriodMetrics(array $periods, array $metricToIdentMap, ?string $wanName = null): void
+		private function archivePeriodMetrics(array $periods, array $metricToIdentMap, ?string $wanName = null, array $siteWans = []): void
 		{
 			$archiveId = $this->getArchiveInstanceId();
 			if ($archiveId === 0) {
@@ -365,7 +402,7 @@ declare(strict_types=1);
 					$periodData = $period['data'];
 					$metricData = $wanName === null
 						? ((isset($periodData['wan']) && is_array($periodData['wan'])) ? $periodData['wan'] : [])
-						: $this->getWanMetricFromPeriodData($periodData, $wanName);
+						: $this->getWanMetricFromPeriodData($periodData, $wanName, $siteWans);
 
 					if (!isset($metricData[$metricName])) {
 						continue;
@@ -386,297 +423,307 @@ declare(strict_types=1);
 			}
 		}
 
-		function timerRun() {
+		public function timerRun() {
 			$this->getMetrics();
 			$this->getSiteData();
 		}
 
-		public function getApiData( string $endpoint = '' ):array {
+		private function TileRefresh(): void
+		{
+			$this->timerRun();
+		}
+
+		/** Requests the API; returns NULL and sets the status of the instance on an error. */
+		private function apiRequest(string $endpoint, ?string $postData = null): ?array {
 			$APIKey = $this->ReadPropertyString( 'APIKey' );
 			if ($APIKey == '') {
 				$this->SendDebug("UnifiSiteApi", "API Key is empty", 0);
-				$this->SetStatus( 201 ); // Set status to error
-				return [];
+				$this->SetStatus( 201 );
+				return null;
 			}
+			$headers = [ 'X-API-Key: '.$APIKey, 'Accept: application/json' ];
 			$ch = curl_init();
 			curl_setopt( $ch, CURLOPT_URL, 'https://api.ui.com/v1'.$endpoint );
-			curl_setopt( $ch, CURLOPT_HTTPGET, true );
+			if ($postData !== null) {
+				curl_setopt( $ch, CURLOPT_POST, true );
+				curl_setopt( $ch, CURLOPT_POSTFIELDS, $postData );
+				$headers[] = 'Content-Type: application/json';
+			}
 			curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-			curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
-			curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, false );
-			curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'X-API-KEY:'.$APIKey ) );
-			curl_setopt( $ch, CURLOPT_SSLVERSION, 'CURL_SSLVERSION_TLSv1' );
+			curl_setopt( $ch, CURLOPT_CONNECTTIMEOUT, 5 );
+			curl_setopt( $ch, CURLOPT_TIMEOUT, 20 );
+			curl_setopt( $ch, CURLOPT_HTTPHEADER, $headers );
 			$RawData = curl_exec( $ch );
-			curl_close( $ch );
+			$httpCode = (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE );
 			if ($RawData === false) {
-				// Handle error
 				$this->SendDebug("UnifiSiteApi", "Curl error: " . curl_error($ch), 0);
-				$this->SetStatus( 201 ); // Set status to error
-				return [];
+				curl_close( $ch );
+				$this->SetStatus( 201 );
+				return null;
 			}
-			$JSONData = json_decode( $RawData, true );
-			if ( isset( $JSONData[ 'statusCode' ] ) ) {
-				if ($JSONData[ 'statusCode' ]<> 200) {
-					// instance inactive
-					$this->SetStatus( $JSONData[ 'statusCode' ] );
-					return [];
-				}        
+			curl_close( $ch );
+			$JSONData = json_decode( (string) $RawData, true );
+			if ($httpCode !== 200 || !is_array($JSONData)) {
+				$this->SendDebug("UnifiSiteApi", "HTTP " . $httpCode . " " . $endpoint . ": " . substr((string) $RawData, 0, 500), 0);
+				$this->SetStatus( in_array($httpCode, [400, 401, 403, 404, 429, 500, 502], true) ? $httpCode : 201 );
+				return null;
 			}
-			$this->SendDebug("UnifiSiteApi", "GetApiData: " . $RawData, 0);
+			// A successful answer ends an earlier error (e.g. the rate limit or an outage).
+			if ($this->GetStatus() >= 200) {
+				$this->SetStatus( $this->ReadPropertyInteger('Timer') > 0 ? 102 : 104 );
+			}
+			$this->SendDebug("UnifiSiteApi", $endpoint . ": " . $RawData, 0);
 			return $JSONData;
-    	}
+		}
+
+		/** All entries of a list endpoint over all pages; NULL if a page could not be read. */
+		private function getApiPages(string $endpoint): ?array {
+			$entries = [];
+			$next = '';
+			do {
+				$data = $this->apiRequest($endpoint . ($next === '' ? '' : '?nextToken=' . rawurlencode($next)));
+				if ($data === null || !isset($data['data']) || !is_array($data['data'])) {
+					return null;
+				}
+				$entries = array_merge($entries, $data['data']);
+				$next = (string) ($data['nextToken'] ?? '');
+			} while ($next !== '');
+
+			return $entries;
+		}
+
+		public function getApiData( string $endpoint = '' ):array {
+			return $this->apiRequest($endpoint) ?? [];
+		}
 
 		public function getApiDataPost( string $endpoint = '', string $PostData = '' ):array {
-			$APIKey = $this->ReadPropertyString( 'APIKey' );
-			if ($APIKey == '') {
-				$this->SendDebug("UnifiSiteApi", "API Key is empty", 0);
-				$this->SetStatus( 201 ); // Set status to error
-				return [];
-			}
-			$ch = curl_init();
-			curl_setopt( $ch, CURLOPT_URL, 'https://api.ui.com/v1'.$endpoint );
-			curl_setopt( $ch, CURLOPT_POST, true );
-			curl_setopt( $ch, CURLOPT_POSTFIELDS, $PostData );
-			curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-			curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, false );
-			curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, false );
-			curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'X-API-KEY:'.$APIKey ) );
-			curl_setopt( $ch, CURLOPT_SSLVERSION, 'CURL_SSLVERSION_TLSv1' );
-			$RawData = curl_exec( $ch );
-			curl_close( $ch );
-			if ($RawData === false) {
-				// Handle error
-				$this->SendDebug("UnifiSiteApi", "Curl error: " . curl_error($ch), 0);
-				$this->SetStatus( 201 ); // Set status to error
-				return [];
-			}
-			$JSONData = json_decode( $RawData, true );
-			if ( isset( $JSONData[ 'statusCode' ] ) ) {
-				if ($JSONData[ 'statusCode' ]<> 200) {
-					// instance inactive
-					$this->SetStatus( $JSONData['statusCode']);
-					return [];
-				}        
-			}
-			$this->SendDebug("UnifiSiteApi", "GetApiDataPost: " . $RawData, 0);
-			return $JSONData;
-    	}
-
-		// public function getMetrics() {
-		// 	if ($this->GetStatus() != 102) {
-		// 		return;
-		// 	}
-		// 	$begin = new DateTime(date("Y-m-d H:i:0",strtotime('-1 hours')), (new DateTime)->getTimezone());
-		// 	$end = new DateTime(date("Y-m-d H:i:0"), (new DateTime)->getTimezone());
-		// 	$begin->setTimezone(new DateTimeZone("UTC"));
-		// 	$end->setTimezone(new DateTimeZone("UTC"));
-		// 	$post = [
-		// 		'sites' => array([
-		// 			'beginTimestamp'  => $begin->format("Y-m-d\TH:i:s\Z"),
-		// 			'hostId' => $this->ReadPropertyString("HostID"),
-		// 			#'endTimestamp' => $end->format("Y-m-d\TH:i:s\Z"),
-		// 			'siteId' => $this->ReadPropertyString("SiteID")
-		// 		])
-		// 	];
-		// 	$PostArray=json_encode($post,1);
-		// 	$this->SendDebug("UnifiSiteApi", "Post Data: " . $PostArray, 0);			
-
-		// 	$data = $this->getApiDataPost( '/isp-metrics/5m/query', $PostArray );
-		// 	if ( is_array( $data ) && isset( $data ) ) {
-		// 		foreach ($data['data']['metrics'] as $metrics) {
-		// 			$periods = end($metrics['periods']);
-		// 			$aktDate = new DateTime($periods['metricTime'], (new DateTimeZone("UTC")));
-		// 			$aktDate->setTimezone((new DateTime)->getTimezone());
-		// 			$this->SetValue('LastUpdate', strtotime($aktDate->format("Y-m-d H:i:s")));
-		// 			$this->SetValue('AVGms', $periods['data']['wan']['avgLatency']);
-		// 			$this->SetValue('maxms', $periods['data']['wan']['maxLatency']);
-		// 			$this->SetValue('PacketLoss', $periods['data']['wan']['packetLoss']);
-		// 			$this->SetValue('Uptime', $periods['data']['wan']['uptime']);						
-		// 			$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($periods), 0);
-		// 		}
-		// 	}
-		// }
-
-public function getMetrics() {
-			// if ($this->GetStatus() != 102) {
-			// 	return;
-			// }
-			$selectedSiteId = $this->ReadPropertyString('SiteID');
-			$begin = new DateTime('now',(new DateTimeZone("UTC"))) ;
-			$begin->modify('-1 hours');
-			$data = $this->getApiData( '/isp-metrics/5m?beginTimestamp='.$begin->format("Y-m-d\TH:i:s\Z"));
-			$this->SendDebug("UnifiSiteApi", "APi Aufruf: " .'/isp-metrics/5m?beginTimestamp='.$begin->format("Y-m-d\TH:i:s\Z"), 0);
-			if (is_array($data) && isset($data['data'])) {
-				
-				foreach ($data['data'] as $entry) {
-					if (isset($entry['siteId']) && $selectedSiteId !== 'default' && $entry['siteId'] !== $selectedSiteId) {
-						continue;
-					}
-					if (isset($entry['hostId']) && $entry['hostId'] === $this->ReadPropertyString("HostID")) {
-						$this->SendDebug("UnifiSiteApi", "Metrics: " . json_encode($entry), 0);
-						$metrics = (isset($entry['periods']) && is_array($entry['periods'])) ? $entry['periods'] : [];
-						if (count($metrics) === 0) {
-							continue;
-						}
-
-						$this->archivePeriodMetrics($metrics, [
-							'avgLatency' => 'AVGms',
-							'maxLatency' => 'maxms',
-							'packetLoss' => 'PacketLoss',
-							'uptime' => 'Uptime'
-						]);
-
-						foreach ($this->getEnabledWANNames() as $wanName) {
-							$suffix = $this->sanitizeIdent($wanName);
-							$this->archivePeriodMetrics($metrics, [
-								'avgLatency' => 'WANAvgLatency_' . $suffix,
-								'downtime' => 'WANDowntime_' . $suffix,
-								'maxLatency' => 'WANMaxLatency_' . $suffix,
-								'packetLoss' => 'WANPacketLoss_' . $suffix
-							], $wanName);
-						}
-
-						$lastPeriod = end($metrics);
-						$periodData = (isset($lastPeriod['data']) && is_array($lastPeriod['data'])) ? $lastPeriod['data'] : [];
-						$wanMetrics = (isset($periodData['wan']) && is_array($periodData['wan'])) ? $periodData['wan'] : [];
-						$this->SetValue('LastUpdate', $this->getMetricTimestamp((string) $lastPeriod['metricTime']));
-						if (isset($wanMetrics['avgLatency'])) {
-							$this->SetValue('AVGms', $wanMetrics['avgLatency']);
-						}
-						if (isset($wanMetrics['maxLatency'])) {
-							$this->SetValue('maxms', $wanMetrics['maxLatency']);
-						}
-						if (isset($wanMetrics['packetLoss'])) {
-							$this->SetValue('PacketLoss', $wanMetrics['packetLoss']);
-						}
-						if (isset($wanMetrics['uptime'])) {
-							$this->SetValue('Uptime', $wanMetrics['uptime']);
-						}
-
-						foreach ($this->getEnabledWANNames() as $wanName) {
-							$suffix = $this->sanitizeIdent($wanName);
-							$wanPeriodMetrics = $this->getWanMetricFromPeriodData($periodData, $wanName);
-
-							if (isset($wanPeriodMetrics['avgLatency'])) {
-								$this->SetValue('WANAvgLatency_' . $suffix, $wanPeriodMetrics['avgLatency']);
-							}
-							if (isset($wanPeriodMetrics['downtime'])) {
-								$this->SetValue('WANDowntime_' . $suffix, $wanPeriodMetrics['downtime']);
-							}
-							if (isset($wanPeriodMetrics['maxLatency'])) {
-								$this->SetValue('WANMaxLatency_' . $suffix, $wanPeriodMetrics['maxLatency']);
-							}
-							if (isset($wanPeriodMetrics['packetLoss'])) {
-								$this->SetValue('WANPacketLoss_' . $suffix, $wanPeriodMetrics['packetLoss']);
-							}
-						}
-						$this->SendDebug("UnifiSiteApi", "LastUpdate: " . json_encode($lastPeriod), 0);
-					}
-				}
-			}
+			return $this->apiRequest($endpoint, $PostData) ?? [];
 		}
-		public function getHosts() {
-			$data[] = $this->getApiData( '/hosts' );			
-			if ( is_array( $data ) && isset( $data ) ) {
-				foreach ($data as $JSONData) {
-				if (isset($JSONData[ 'data' ])) {
-					$hosts = $JSONData[ 'data' ];
-					usort( $hosts, function ( $a, $b ) {
-						return strcmp($a['reportedState']['hostname'], $b['reportedState']['hostname']);
-					});
 
-					foreach ( $hosts as $host ) {
-						$value[] = [
-							'caption'=>$host[ 'reportedState' ]['hostname'],
-							'value'=> $host[ 'id' ]
-						];
-					}
-				} else {
-					$value[] = [
-						'caption'=>'default',
-						'value'=> 'default'
-					];
-				}
-				$this->UpdateFormField("HostID", "options", json_encode($value));
-				$this->SetBuffer( 'HostID', json_encode($value));
+		public function getMetrics() {
+			$site = $this->getSiteBySelection();
+			if ($site === null) {
+				$this->TileUpdate(['metricsError' => true]);
+				return;
+			}
+
+			$begin = new DateTime('now', new DateTimeZone('UTC'));
+			$begin->modify('-24 hours');
+			$data = $this->getApiDataPost('/isp-metrics/5m/query', (string) json_encode(['sites' => [[
+				'beginTimestamp' => $begin->format('Y-m-d\TH:i:s\Z'),
+				'hostId'         => (string) $site['hostId'],
+				'siteId'         => (string) $site['siteId']
+			]]]));
+			if (!isset($data['data']['metrics']) || !is_array($data['data']['metrics'])) {
+				$this->TileUpdate(['metricsError' => true]);
+				return;
+			}
+
+			$periods = [];
+			foreach ($data['data']['metrics'] as $entry) {
+				if (($entry['siteId'] ?? '') === $site['siteId'] && isset($entry['periods']) && is_array($entry['periods'])) {
+					$periods = $entry['periods'];
 				}
 			}
+			if (count($periods) === 0) {
+				// The console is not sending any metrics right now, which is no error of the API.
+				$this->TileUpdate(['metricsError' => false, 'history' => []]);
+				return;
+			}
+
+			$siteWans = $this->getSiteWans();
+			$enabledWANs = $this->getEnabledWANNames() ?? [];
+
+			// The archive only gets the last hour, the 24 hours are for the chart of the tile.
+			$archiveFrom = time() - self::ARCHIVE_WINDOW;
+			$recent = array_values(array_filter($periods, function ($period) use ($archiveFrom) {
+				return isset($period['metricTime']) && $this->getMetricTimestamp((string) $period['metricTime']) >= $archiveFrom;
+			}));
+			$this->archivePeriodMetrics($recent, [
+				'avgLatency' => 'AVGms',
+				'maxLatency' => 'maxms',
+				'packetLoss' => 'PacketLoss',
+				'uptime' => 'Uptime'
+			]);
+			foreach ($enabledWANs as $wanName) {
+				$suffix = $this->sanitizeIdent($wanName);
+				$this->archivePeriodMetrics($recent, [
+					'avgLatency' => 'WANAvgLatency_' . $suffix,
+					'downtime' => 'WANDowntime_' . $suffix,
+					'maxLatency' => 'WANMaxLatency_' . $suffix,
+					'packetLoss' => 'WANPacketLoss_' . $suffix
+				], $wanName, $siteWans);
+			}
+
+			$lastPeriod = end($periods);
+			$periodData = (isset($lastPeriod['data']) && is_array($lastPeriod['data'])) ? $lastPeriod['data'] : [];
+			$wanMetrics = (isset($periodData['wan']) && is_array($periodData['wan'])) ? $periodData['wan'] : [];
+			$lastTime = $this->getMetricTimestamp((string) $lastPeriod['metricTime']);
+			$this->SetValue('LastUpdate', $lastTime);
+			foreach (['avgLatency' => 'AVGms', 'maxLatency' => 'maxms', 'packetLoss' => 'PacketLoss', 'uptime' => 'Uptime', 'downtime' => 'Downtime'] as $metric => $ident) {
+				if (isset($wanMetrics[$metric])) {
+					$this->SetValue($ident, $wanMetrics[$metric]);
+				}
+			}
+			if (isset($wanMetrics['download_kbps'])) {
+				$this->SetValue('ISPDownload', $wanMetrics['download_kbps'] / 1000);
+			}
+			if (isset($wanMetrics['upload_kbps'])) {
+				$this->SetValue('ISPUpload', $wanMetrics['upload_kbps'] / 1000);
+			}
+
+			$activeWAN = $this->getWanNameForMetrics($wanMetrics, $siteWans);
+			$this->SetValue('ActiveWAN', $activeWAN ?? '');
+
+			foreach ($enabledWANs as $wanName) {
+				$suffix = $this->sanitizeIdent($wanName);
+				$wanPeriodMetrics = $this->getWanMetricFromPeriodData($periodData, $wanName, $siteWans);
+				foreach (['avgLatency' => 'WANAvgLatency_', 'downtime' => 'WANDowntime_', 'maxLatency' => 'WANMaxLatency_', 'packetLoss' => 'WANPacketLoss_'] as $metric => $prefix) {
+					if (isset($wanPeriodMetrics[$metric])) {
+						$this->SetValue($prefix . $suffix, $wanPeriodMetrics[$metric]);
+					}
+				}
+			}
+
+			// Time, average and maximum latency, packet loss and downtime of each period.
+			$history = [];
+			foreach ($periods as $period) {
+				$wan = $period['data']['wan'] ?? null;
+				if (!is_array($wan) || !isset($period['metricTime'], $wan['avgLatency'])) {
+					continue;
+				}
+				$history[] = [
+					$this->getMetricTimestamp((string) $period['metricTime']),
+					(int) round((float) $wan['avgLatency']),
+					(int) round((float) ($wan['maxLatency'] ?? $wan['avgLatency'])),
+					(int) round((float) ($wan['packetLoss'] ?? 0)),
+					(int) round((float) ($wan['downtime'] ?? 0))
+				];
+			}
+
+			$this->TileUpdate([
+				'metricsError' => false,
+				'time'         => $lastTime,
+				'activeWan'    => $activeWAN,
+				'uptime'       => $wanMetrics['uptime'] ?? null,
+				'history'      => $history
+			]);
+		}
+
+		public function getHosts() {
+			$hosts = $this->getApiPages('/hosts') ?? [];
+			$hostName = function (array $host): string {
+				return (string) ($host['reportedState']['hostname'] ?? $host['id'] ?? '');
+			};
+			usort($hosts, function ($a, $b) use ($hostName) {
+				return strcmp($hostName($a), $hostName($b));
+			});
+
+			$value = [];
+			foreach ($hosts as $host) {
+				$value[] = [ 'caption' => $hostName($host), 'value' => $host['id'] ];
+			}
+			if (count($value) === 0) {
+				$value[] = [ 'caption' => 'default', 'value' => 'default' ];
+			}
+			$this->UpdateFormField("HostID", "options", json_encode($value));
+			$this->SetBuffer( 'HostID', json_encode($value));
 		}
 
 		public function getSites() {
-			$data[] = $this->getApiData( '/sites' );			
-			$bGefunden=false;
-			if ( is_array( $data ) && isset( $data ) ) {
-				foreach ($data as $JSONData) {
-				if (isset($JSONData[ 'data' ])) {
-					$sites = $JSONData[ 'data' ];
-					usort( $sites, function ( $a, $b ) {
-						return strcmp($a['meta']['desc'], $b['meta']['desc']);
-					});					
-					foreach ( $sites as $site ) {						
-						if ($site['hostId'] !== $this->ReadPropertyString("HostID")) {
-							continue; 
-						}
-						$value[] = [
-							'caption'=>$site['meta']['desc'],
-							'value'=> $site[ 'siteId' ]
-						];
-						$bGefunden=true;
-					}
-				} 
+			$sites = $this->getAllSites() ?? [];
+			usort($sites, function ($a, $b) {
+				return strcmp((string) ($a['meta']['desc'] ?? ''), (string) ($b['meta']['desc'] ?? ''));
+			});
+
+			$value = [];
+			foreach ($sites as $site) {
+				if (($site['hostId'] ?? '') !== $this->ReadPropertyString("HostID")) {
+					continue;
+				}
+				$value[] = [ 'caption' => (string) ($site['meta']['desc'] ?? $site['siteId']), 'value' => $site['siteId'] ];
 			}
-			}
-			if (!$bGefunden) {
-				$value[] = [
-					'caption'=>'default',
-					'value'=> 'default'
-				];
+			if (count($value) === 0) {
+				$value[] = [ 'caption' => 'default', 'value' => 'default' ];
 			}
 			$this->UpdateFormField("SiteID", "options", json_encode($value));
 			$this->SetBuffer( 'SiteID', json_encode($value));
 		}
 
 		public function getSiteData() {
-			// if ($this->GetStatus() != 102) {
-			// 	return;
-			// }
 			$site = $this->getSiteBySelection();
 			if ($site === null) {
+				$this->TileUpdate(['siteError' => true]);
 				return;
 			}
 
+			$statistics = $site['statistics'] ?? [];
+			$counts = $statistics['counts'] ?? [];
+			$internetIssues = is_array($statistics['internetIssues'] ?? null) ? count($statistics['internetIssues']) : 0;
 			$this->SetValue('SiteName', isset($site['meta']['desc']) ? $site['meta']['desc'] : '');
-			$this->SetValue('ActiveISP', isset($site['statistics']['ispInfo']['name']) ? $site['statistics']['ispInfo']['name'] : '');
-			$this->SetValue('UnifiDevices', isset($site['statistics']['counts']['totalDevice']) ? $site['statistics']['counts']['totalDevice'] : 0);
-			$this->SetValue('WifiClients', isset($site['statistics']['counts']['wifiClient']) ? $site['statistics']['counts']['wifiClient'] : 0);
-			$this->SetValue('WiredClients', isset($site['statistics']['counts']['wiredClient']) ? $site['statistics']['counts']['wiredClient'] : 0);
-
-			$siteWans = isset($site['statistics']['wans']) && is_array($site['statistics']['wans']) ? $site['statistics']['wans'] : [];
-			foreach ($this->getEnabledWANNames() as $wanName) {
-				$suffix = $this->sanitizeIdent($wanName);
-				$wanData = isset($siteWans[$wanName]) && is_array($siteWans[$wanName]) ? $siteWans[$wanName] : [];
-
-				$this->SetValue('WAN_' . $suffix, isset($wanData['ispInfo']['name']) ? $wanData['ispInfo']['name'] : '');
-				$this->SetValue('WANIP_' . $suffix, isset($wanData['externalIp']) ? $wanData['externalIp'] : '');
-				$this->SetValue('WANUptime_' . $suffix, isset($wanData['wanUptime']) ? $wanData['wanUptime'] : 0);
-				if (isset($wanData['avgLatency'])) {
-					$this->SetValue('WANAvgLatency_' . $suffix, $wanData['avgLatency']);
-				}
-				if (isset($wanData['downtime'])) {
-					$this->SetValue('WANDowntime_' . $suffix, $wanData['downtime']);
-				}
-				if (isset($wanData['maxLatency'])) {
-					$this->SetValue('WANMaxLatency_' . $suffix, $wanData['maxLatency']);
-				}
-				if (isset($wanData['packetLoss'])) {
-					$this->SetValue('WANPacketLoss_' . $suffix, $wanData['packetLoss']);
-				}
+			$this->SetValue('ActiveISP', isset($statistics['ispInfo']['name']) ? $statistics['ispInfo']['name'] : '');
+			$this->SetValue('UnifiDevices', $counts['totalDevice'] ?? 0);
+			$this->SetValue('WifiClients', $counts['wifiClient'] ?? 0);
+			$this->SetValue('WiredClients', $counts['wiredClient'] ?? 0);
+			$this->SetValue('GuestClients', $counts['guestClient'] ?? 0);
+			$this->SetValue('OfflineDevices', $counts['offlineDevice'] ?? 0);
+			$this->SetValue('PendingUpdates', $counts['pendingUpdateDevice'] ?? 0);
+			$this->SetValue('CriticalNotifications', $counts['criticalNotification'] ?? 0);
+			$this->SetValue('InternetIssues', $internetIssues);
+			if (isset($statistics['percentages']['txRetry'])) {
+				$this->SetValue('TxRetry', (float) $statistics['percentages']['txRetry']);
 			}
+
+			$siteWans = $this->getSiteWans();
+			$tileWans = [];
+			foreach ($this->getEnabledWANNames() ?? [] as $wanName) {
+				if (!isset($siteWans[$wanName]) || !is_array($siteWans[$wanName])) {
+					// Not reported at the moment: the variables keep their last value.
+					continue;
+				}
+				$wanData = $siteWans[$wanName];
+				$suffix = $this->sanitizeIdent($wanName);
+
+				$this->SetValue('WAN_' . $suffix, $wanData['ispInfo']['name'] ?? '');
+				$this->SetValue('WANIP_' . $suffix, $wanData['externalIp'] ?? '');
+				$this->SetValue('WANUptime_' . $suffix, $wanData['wanUptime'] ?? 0);
+				$this->SetValue('WANPortUp_' . $suffix, (bool) ($wanData['portUp'] ?? false));
+
+				// Only values for display, see UnifiTile.
+				$tileWans[] = [
+					'name'     => $wanName,
+					'isp'      => (string) ($wanData['ispInfo']['name'] ?? ''),
+					'ip'       => (string) ($wanData['externalIp'] ?? ''),
+					'up'       => (bool) ($wanData['portUp'] ?? false),
+					'uptime'   => $wanData['wanUptime'] ?? null,
+					'issues'   => is_array($wanData['wanIssues'] ?? null) ? count($wanData['wanIssues']) : 0,
+					'priority' => (int) ($wanData['failoverPriority'] ?? 99)
+				];
+			}
+			usort($tileWans, function ($a, $b) {
+				return $a['priority'] <=> $b['priority'];
+			});
+
+			$this->TileUpdate([
+				'siteError' => false,
+				'name'      => (string) ($site['meta']['desc'] ?? ''),
+				'isp'       => (string) ($statistics['ispInfo']['name'] ?? ''),
+				'gateway'   => (string) ($statistics['gateway']['shortname'] ?? ''),
+				'devices'   => (int) ($counts['totalDevice'] ?? 0),
+				'offline'   => (int) ($counts['offlineDevice'] ?? 0),
+				'updates'   => (int) ($counts['pendingUpdateDevice'] ?? 0),
+				'critical'  => (int) ($counts['criticalNotification'] ?? 0),
+				'wifi'      => (int) ($counts['wifiClient'] ?? 0),
+				'wired'     => (int) ($counts['wiredClient'] ?? 0),
+				'issues'    => $internetIssues,
+				'wans'      => $tileWans
+			]);
 		}
 
 		public function GetConfigurationForm(){       
 			$arrayStatus = array();
 			$arrayStatus[] = array( 'code' => 102, 'icon' => 'active', 'caption' => 'Instanz ist aktiv' );
+			$arrayStatus[] = array( 'code' => 104, 'icon' => 'inactive', 'caption' => 'Instanz ist inaktiv (Timer = 0)' );
 			$arrayStatus[] = array( 'code' => 201, 'icon' => 'inactive', 'caption' => 'Instanz ist fehlerhaft: Fehler Datenabfrage' );
 			$arrayStatus[] = array( 'code' => 400, 'icon' => 'inactive', 'caption' => 'Instanz ist fehlerhaft: Bad Request' );
 			$arrayStatus[] = array( 'code' => 401, 'icon' => 'inactive', 'caption' => 'Instanz ist fehlerhaft: Unauthorized' );
@@ -688,9 +735,9 @@ public function getMetrics() {
 
 			$arrayElements = array();
 			$arrayElements[] = array( 'type' => 'Label', 'label' => $this->Translate('Unifif Site Manager Metrics') ); 
-			$arrayElements[] = array( 'type' => 'Label', 'label' => 'Bitte API Key unter "https://unifi.ui.com/" erzeugen -> Links auf "API"');
-			$arrayElements[] = array( 'type' => 'NumberSpinner', 'name' => 'Timer', 'caption' => 'Timer (s) -> 0=Off, 3600=1h' );
-			$arrayElements[] = array( 'type' => 'ValidationTextBox', 'name' => 'APIKey', 'caption' => 'APIKey' );
+			$arrayElements[] = array( 'type' => 'Label', 'label' => 'Bitte API Key unter "https://unifi.ui.com/" erzeugen -> Settings -> API Keys');
+			$arrayElements[] = array( 'type' => 'NumberSpinner', 'name' => 'Timer', 'caption' => 'Timer (s) -> 0=Off, 300=5min (Metriken liegen im 5-Minuten-Raster vor)' );
+			$arrayElements[] = array( 'type' => 'PasswordTextBox', 'name' => 'APIKey', 'caption' => 'APIKey' );
 
 			$Bufferdata = $this->GetBuffer("HostID");
 			
@@ -716,9 +763,12 @@ public function getMetrics() {
 				'name'    => 'WANSelection',
 				'caption' => 'WAN Schnittstellen (nur gewaehlte SiteID)',
 				'rowCount'=> 6,
+				// The rows come from the API and are merged with the saved selection in getWANRowsForForm.
+				'loadValuesFromConfiguration' => false,
 				'columns' => array(
-					array('caption' => 'WAN', 'name' => 'Name', 'width' => '220px', 'add' => false, 'edit' => false),
-					array('caption' => 'Aktiv', 'name' => 'Enabled', 'width' => '100px', 'add' => false, 'edit' => array('type' => 'CheckBox'))
+					// Not editable, therefore not saved without "save": the selection would lose its WAN names.
+					array('caption' => 'WAN', 'name' => 'Name', 'width' => '220px', 'save' => true),
+					array('caption' => 'Aktiv', 'name' => 'Enabled', 'width' => '100px', 'edit' => array('type' => 'CheckBox'))
 				),
 				'values'  => $wanRows
 			);
