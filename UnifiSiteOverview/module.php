@@ -24,7 +24,7 @@ require_once __DIR__ . '/../libs/UnifiTile.php';
 			$this->RegisterPropertyString('WANSelection', '[]');
 			$this->RegisterPropertyInteger('Timer', 0);
 			$this->RegisterTimer('Collect Data', 0, "UISPM_timerRun(\$_IPS['TARGET']);");
-			$this->SetVisualizationType(INSTANCE_VISUALIZATION_TYPE_HTML);
+			$this->SetVisualizationType(defined('INSTANCE_VISUALIZATION_TYPE_HTML') ? constant('INSTANCE_VISUALIZATION_TYPE_HTML') : 1);
 		}
 
 		public function Destroy()
@@ -37,7 +37,7 @@ require_once __DIR__ . '/../libs/UnifiTile.php';
 		{
 			//Never delete this line!
 			parent::ApplyChanges();
-			$this->SetVisualizationType(INSTANCE_VISUALIZATION_TYPE_HTML);
+			$this->SetVisualizationType(defined('INSTANCE_VISUALIZATION_TYPE_HTML') ? constant('INSTANCE_VISUALIZATION_TYPE_HTML') : 1);
 			$vpos = 100;
 			$this->MaintainVariable( 'SiteName', $this->Translate( 'Name' ), 3, [ 'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'USAGE_TYPE'=> 0 ,'ICON'=> 'circle-info'], $vpos++, 1 );
 			$this->MaintainVariable( 'LastUpdate', $this->Translate( 'Start Zeitraum' ), 1, [ 'PRESENTATION' => VARIABLE_PRESENTATION_DATE_TIME ,'ICON'=> 'circle-info'], $vpos++, 1 );
